@@ -1,6 +1,7 @@
 # v0.2.0
 
 - New look matching the Ludo launcher: ink-wash panel, red sun (a moon at night), blossom branch and falling petals.
+- The branch lights up with your progress: the share of tracked levels you have beaten, starting from the trunk.
 - Overview: numbers count up, and a death mountain shows where in your most-died level you die.
 - Levels: blossom favorites, red "complete" seals and a best-percent bar on every row.
 - Collections look like scrolls; buttons on the level page are redrawn to match.

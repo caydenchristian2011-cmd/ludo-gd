@@ -22,7 +22,22 @@ def text(s, x, y, size, color='#ece4de', anchor='l', font='Fraunces', weight=700
 
 parts = [img('hub_bg', 230, 145)]
 parts.append(img('sun', 92, H - 86, extra='opacity:.47'))
+import re
+buds = [tuple(map(float, m)) for m in re.findall(r'\{([\d.]+)f, ([\d.]+)f, ([\d.]+)f, ([\d.]+)\.f\}', open(os.path.join(R, '..', 'src', 'BranchData.hpp')).read())]
+BW, BH = 190, 118
 parts.append(img('branch', 456, H - 4, anchor=(1, 1), extra='transform:scaleX(-1);transform-origin:center'))
+vis = [b for b in buds if b[1] < 68]
+lit = round(float(os.environ.get('PROGRESS', '0.5')) * len(vis))
+for n, (bx, by, bs, br) in enumerate(vis):
+    fade = min(max(1 - (by - 38) / 30, 0), 1)
+    gx, gy = 456 - bx, H - 4 - by      # css-space centre of the bud
+    k = bs / 20
+    on = n < lit
+    def put(name, size, extra):
+        return f'<img src="file://{R}/ludo_{name}.png" style="position:absolute;left:{gx - size / 2}px;top:{H - gy - size / 2 - 0}px;width:{size}px;height:{size}px;{extra}">'
+    if on:
+        parts.append(put('bud_glow', 44 * k * 1.9, f'opacity:{.6 * fade}'))
+    parts.append(put('bud_lit' if on else 'bud_dim', 44 * k, f'opacity:{(1 if on else .8) * fade};transform:rotate({-br}deg)'))
 for i, (px, py) in enumerate([(70, 250), (150, 200), (230, 150), (310, 230), (390, 120), (420, 190), (40, 120)]):
     parts.append(img(f'petal_{i % 3}', px, py, extra='opacity:.7'))
 parts.append(img('ic_x', 14, H - 14))

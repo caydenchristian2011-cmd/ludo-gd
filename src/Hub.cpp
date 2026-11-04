@@ -1,5 +1,6 @@
 #include "Hub.hpp"
 #include "Store.hpp"
+#include "BranchData.hpp"
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -198,6 +199,14 @@ static bool isNight() {
     return h >= 22 || h < 5;
 }
 
+// How much of the branch is lit: levels you have beaten out of levels tracked.
+static float branchProgress() {
+    auto& st = Store::get();
+    size_t total = st.levelCount();
+    if (total == 0) return 0.f;
+    return static_cast<float>(st.totalBeaten()) / static_cast<float>(total);
+}
+
 // Sun (or moon), the blossom branch and drifting petals, all behind the panel's content.
 static void addBackdrop(CCNode* layer, CCSize size, CCNode* bg) {
     layer->reorderChild(bg, -10);
@@ -221,10 +230,52 @@ static void addBackdrop(CCNode* layer, CCSize size, CCNode* bg) {
     }
     layer->addChild(sun, -6);
 
-    auto branch = spr("ludo_branch.png"_spr);
-    branch->setFlipX(true);
+    // The branch: bare wood, plus one blossom per bud. The blossoms light up with your
+    // progress (levels beaten out of levels tracked), starting at the trunk.
+    auto branch = CCNode::create();
+    branch->ignoreAnchorPointForPosition(false);
+    branch->setContentSize({kBranchW, kBranchH});
     branch->setAnchorPoint({1.f, 1.f});
     branch->setPosition({size.width - 4.f, size.height - 4.f});
+
+    auto wood = spr("ludo_branch.png"_spr);
+    wood->setFlipX(true);
+    wood->setPosition({kBranchW / 2, kBranchH / 2});
+    branch->addChild(wood);
+
+    int visible = 0;
+    for (int i = 0; i < kBudCount; i++) if (kBuds[i].y < 68.f) visible++;   // the lower ones would sit on the content
+    int lit = static_cast<int>(std::lround(branchProgress() * static_cast<float>(visible)));
+    int seen = 0;
+    for (int i = 0; i < kBudCount; i++) {
+        auto const& bud = kBuds[i];
+        if (bud.y >= 68.f) continue;
+        float fade = std::clamp(1.f - (bud.y - 38.f) / 30.f, 0.f, 1.f);   // blossoms melt away down the branch
+        bool on = seen < lit;
+        seen++;
+        CCPoint at = {kBranchW - bud.x, kBranchH - bud.y};   // mirrored, y up
+        float k = bud.size / kBudRef;
+
+        if (on) {
+            auto glow = spr("ludo_bud_glow.png"_spr, k * 1.9f);
+            glow->setPosition(at);
+            glow->setOpacity(static_cast<GLubyte>(150.f * fade));
+            if (move) {
+                glow->runAction(CCRepeatForever::create(CCSequence::create(
+                    CCDelayTime::create(0.35f * static_cast<float>(i % 5)),
+                    CCFadeTo::create(2.2f, static_cast<GLubyte>(70.f * fade)),
+                    CCFadeTo::create(2.2f, static_cast<GLubyte>(170.f * fade)),
+                    nullptr)));
+            }
+            branch->addChild(glow, 1);
+        }
+        auto flower = spr(on ? "ludo_bud_lit.png"_spr : "ludo_bud_dim.png"_spr, k);
+        flower->setPosition(at);
+        flower->setRotation(-bud.rot);
+        flower->setOpacity(static_cast<GLubyte>((on ? 255.f : 205.f) * fade));
+        branch->addChild(flower, 2);
+    }
+
     if (move) {
         branch->runAction(CCRepeatForever::create(CCSequence::create(
             CCEaseSineInOut::create(CCRotateTo::create(5.5f, 1.2f)),
@@ -327,8 +378,9 @@ void Hub::build() {
     }
 
     // footer, left of the friend
-    makeLabel(m_root, fmt::format("Ludo {}", Mod::get()->getVersion().toVString()), "chatFont.fnt", 0.6f, {24.f, 20.f}, {0.f, 0.5f})
-        ->setOpacity(110);
+    makeLabel(m_root,
+        fmt::format("Ludo {}   |   {} of {} levels beaten", Mod::get()->getVersion().toVString(), Store::get().totalBeaten(), Store::get().levelCount()),
+        "chatFont.fnt", 0.6f, {24.f, 20.f}, {0.f, 0.5f})->setOpacity(120);
 }
 
 void Hub::onTab(CCObject* sender) {

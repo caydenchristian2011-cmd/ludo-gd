@@ -75,6 +75,7 @@ std::vector<LevelStat*> Store::byTime() {
 double Store::totalSeconds() const { double t = 0; for (auto& l : m_levels) t += l.seconds; return t; }
 int Store::totalAttempts() const { int t = 0; for (auto& l : m_levels) t += l.attempts; return t; }
 int Store::totalDeaths() const { int t = 0; for (auto& l : m_levels) t += l.deaths; return t; }
+int Store::totalBeaten() const { int t = 0; for (auto& l : m_levels) if (l.completions > 0) t++; return t; }
 int Store::totalCompletions() const { int t = 0; for (auto& l : m_levels) t += l.completions; return t; }
 
 bool Store::isFavorite(int id) {

@@ -41,6 +41,7 @@ public:
     int totalAttempts() const;
     int totalDeaths() const;
     int totalCompletions() const;
+    int totalBeaten() const;   // levels with at least one completion
     size_t levelCount() const { return m_levels.size(); }
 
     // favorites and collections
