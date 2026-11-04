@@ -29,10 +29,26 @@ protected:
     void onRemoveFromCollection(cocos2d::CCObject*);
     void onBack(cocos2d::CCObject*);
 
+    // corner friend
+    void addFriend(cocos2d::CCSize size);
+    void friendTick(float dt);
+    void showPose(int pose);
+    void react(int pose, float seconds);
+    void onFriend(cocos2d::CCObject*);
+
     cocos2d::CCNode* m_root = nullptr;
     Tab m_tab = Tab::Overview;
     bool m_favOnly = false;
     int m_viewing = -1;           // collection being viewed, or -1
+
+    cocos2d::CCNode* m_poses[4] = {nullptr, nullptr, nullptr, nullptr};   // neutral, blink, happy, oh
+    int m_pose = -1;
+    int m_reactPose = 2;
+    bool m_sleepy = false;
+    float m_clock = 0.f;
+    float m_reactUntil = 0.f;
+    float m_blinkUntil = 0.f;
+    float m_nextBlink = 2.f;
 };
 
 // "Add to a collection" picker used from the level page.

@@ -1,0 +1,19 @@
+<svg viewBox="0 0 120 74" width="120" height="74" aria-hidden="true" focusable="false"><defs><linearGradient id="o-b" gradientUnits="userSpaceOnUse" x1="0" y1="4" x2="0" y2="70"><stop offset="0.00" stop-color="#ff9fb0"/><stop offset="0.50" stop-color="#f0627f"/><stop offset="1.00" stop-color="#c63d70"/></linearGradient><linearGradient id="o-t" gradientUnits="userSpaceOnUse" x1="0" y1="40" x2="0" y2="74"><stop offset="0.00" stop-color="#f0627f"/><stop offset="1.00" stop-color="#d24a78"/></linearGradient></defs><g class="fr-bob"><g class="fr-arm fr-arm-l">
+        <path d="M44 56 C30 54 20 60 17 67 C14 73 7 72 6 66 C5 62 9 60 12 62" fill="none" stroke="url(#o-t)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M40 62 C30 66 26 71 21 73" fill="none" stroke="url(#o-t)" stroke-width="8" stroke-linecap="round"/>
+        <g fill="#ffc6d2" opacity=".85"><circle cx="30" cy="59.5" r="1.7"/><circle cx="22.5" cy="64" r="1.6"/><circle cx="14.5" cy="69.5" r="1.4"/><circle cx="33" cy="66.6" r="1.4"/></g></g>
+      <g class="fr-arm fr-arm-r">
+        <path d="M76 56 C90 54 100 60 103 67 C106 73 113 72 114 66 C115 62 111 60 108 62" fill="none" stroke="url(#o-t)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M80 62 C90 66 94 71 99 73" fill="none" stroke="url(#o-t)" stroke-width="8" stroke-linecap="round"/>
+        <g fill="#ffc6d2" opacity=".85"><circle cx="90" cy="59.5" r="1.7"/><circle cx="97.5" cy="64" r="1.6"/><circle cx="105.5" cy="69.5" r="1.4"/><circle cx="87" cy="66.6" r="1.4"/></g></g>
+      <path d="M60 5 C82 5 94 24 91 46 C90 60 78 70 60 70 C42 70 30 60 29 46 C26 24 38 5 60 5Z" fill="url(#o-b)"/>
+      <path d="M44 14 C50 9 58 8 63 8" fill="none" stroke="#ffd2dc" stroke-width="3" stroke-linecap="round" opacity=".55"/>
+      <g fill="#ffb9c8" opacity=".7"><circle cx="52" cy="22" r="2.4"/><circle cx="67" cy="19" r="1.9"/><circle cx="75" cy="27" r="1.5"/><circle cx="46" cy="30" r="1.4"/><circle cx="60" cy="29" r="1.2"/></g>
+      <ellipse class="fr-cheek" cx="38" cy="52" rx="5" ry="3.1" fill="#ff3f6c" opacity="0.4"/><ellipse class="fr-cheek" cx="82" cy="52" rx="5" ry="3.1" fill="#ff3f6c" opacity="0.4"/>
+      <g class="fr-eye"><circle class="fr-sclera" cx="47" cy="42" r="9.5" fill="#fff"/>
+        <g class="fr-pupil"><circle cx="47" cy="42" r="5.4" fill="#13203a"/><circle cx="49.268" cy="39.732" r="1.84" fill="#fff"/></g>
+        <circle class="fr-lid" cx="47" cy="42" r="10" fill="url(#o-b)"/></g><g class="fr-eye"><circle class="fr-sclera" cx="73" cy="42" r="9.5" fill="#fff"/>
+        <g class="fr-pupil"><circle cx="73" cy="42" r="5.4" fill="#13203a"/><circle cx="75.268" cy="39.732" r="1.84" fill="#fff"/></g>
+        <circle class="fr-lid" cx="73" cy="42" r="10" fill="url(#o-b)"/></g>
+      <path class="fr-mouth fr-smile" d="M55 56 Q60 61.25 65 56" fill="none" stroke="#8b2748" stroke-width="1.9" stroke-linecap="round"/>
+      <ellipse class="fr-mouth fr-oh" cx="60" cy="58" rx="2.8" ry="3.4" fill="#8b2748"/></g></svg>

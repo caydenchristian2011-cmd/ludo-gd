@@ -3,11 +3,14 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdlib>
 #include <ctime>
 
 using namespace geode::prelude;
 
 namespace ludo {
+
+// ---------------------------------------------------------------- small helpers
 
 static std::string shorten(std::string const& s, size_t n) {
     if (s.size() <= n) return s;
@@ -23,20 +26,82 @@ static CCLabelBMFont* makeLabel(CCNode* parent, std::string const& text, char co
     return l;
 }
 
+// Headings use the launcher's serif. If the font did not load, fall back to the game's own.
+static CCLabelBMFont* heading(CCNode* parent, std::string const& text, float scale, CCPoint pos, CCPoint anchor = {0.5f, 0.5f},
+                              ccColor3B color = {236, 228, 222}) {
+    auto l = CCLabelBMFont::create(text.c_str(), "Fraunces.fnt"_spr);
+    if (!l) {
+        l = CCLabelBMFont::create(text.c_str(), "goldFont.fnt");
+        scale *= 0.8f;
+    }
+    l->setScale(scale);
+    l->setAnchorPoint(anchor);
+    l->setPosition(pos);
+    l->setColor(color);
+    parent->addChild(l);
+    return l;
+}
+
+// A sprite from the mod's images. A missing image gives an empty sprite, never a crash.
+static CCSprite* spr(char const* name, float scale = 1.f) {
+    auto s = CCSprite::create(name);
+    if (!s) s = CCSprite::create();
+    s->setScale(scale);
+    return s;
+}
+
+// Same, for names built at run time ("ludo_petal_2.png").
+static CCSprite* sprFile(std::string const& file, float scale = 1.f) {
+    return spr(Mod::get()->expandSpriteName(file).c_str(), scale);
+}
+
+// A stretchable image (rounded cards, pills, scroll rows). Centered on its position.
+static CCNodeRGBA* nine(char const* file, CCSize size, NineSlice::Insets insets = {}) {
+    CCNodeRGBA* out = NineSlice::create(file, CCRect{}, insets);
+    if (!out) out = CCNodeRGBA::create();
+    out->setAnchorPoint({0.5f, 0.5f});
+    out->setContentSize(size);
+    return out;
+}
+
 // A dark rounded card used for tiles and rows.
-static CCScale9Sprite* makeCard(CCSize size, GLubyte opacity = 255) {
-    auto bg = CCScale9Sprite::create("ludo_tile.png"_spr, {0, 0, 48, 48});
-    bg->setContentSize(size);
+static CCNodeRGBA* card(CCSize size, GLubyte opacity = 255) {
+    auto bg = nine("ludo_tile.png"_spr, size);
     bg->setOpacity(opacity);
     return bg;
+}
+
+// Rounded button face with a label: red when it is the main action, dark otherwise.
+static CCNode* pill(std::string const& text, float w, bool on, float h = 26.f) {
+    auto root = CCNode::create();
+    root->setContentSize({w, h});
+    auto bg = nine(on ? "ludo_pill_on.png"_spr : "ludo_pill_off.png"_spr, {w, h}, NineSlice::Insets{11.f, 22.f, 11.f, 22.f});
+    bg->setPosition({w / 2, h / 2});
+    root->addChild(bg);
+    auto l = CCLabelBMFont::create(text.c_str(), "bigFont.fnt");
+    l->limitLabelWidth(w - 16.f, 0.42f, 0.1f);
+    l->setColor(on ? ccColor3B{255, 255, 255} : ccColor3B{236, 228, 222});
+    l->setPosition({w / 2, h / 2 + 1.f});
+    root->addChild(l);
+    return root;
+}
+
+static void openLevelPage(int id) {
+    auto obj = GJSearchObject::create(SearchType::Search, std::to_string(id));
+    auto scene = LevelBrowserLayer::scene(obj);
+    CCDirector::get()->pushScene(CCTransitionFade::create(0.5f, scene));
+}
+
+static bool ambience() {
+    return Mod::get()->getSettingValue<bool>("ambience");
 }
 
 // A number that counts up from zero when it appears.
 class CountUp : public CCNode {
 public:
-    static CountUp* create(double target, bool isTime, float scale, char const* font) {
+    static CountUp* create(double target, bool isTime, float scale, bool animate) {
         auto ret = new CountUp();
-        if (ret && ret->setup(target, isTime, scale, font)) {
+        if (ret && ret->setup(target, isTime, scale, animate)) {
             ret->autorelease();
             return ret;
         }
@@ -44,15 +109,23 @@ public:
         return nullptr;
     }
 
-    bool setup(double target, bool isTime, float scale, char const* font) {
+    bool setup(double target, bool isTime, float scale, bool animate) {
         if (!CCNode::init()) return false;
         m_target = target;
         m_isTime = isTime;
-        m_label = CCLabelBMFont::create("0", font);
+        m_label = CCLabelBMFont::create("0", "Fraunces.fnt"_spr);
+        if (!m_label) {
+            m_label = CCLabelBMFont::create("0", "bigFont.fnt");
+            scale *= 0.8f;
+        }
         m_label->setScale(scale);
         this->addChild(m_label);
-        this->show(0.0);
-        this->scheduleUpdate();
+        if (animate) {
+            this->show(0.0);
+            this->scheduleUpdate();
+        } else {
+            this->show(target);
+        }
         return true;
     }
 
@@ -103,15 +176,12 @@ static void drawMountain(CCNode* parent, std::array<int, 20> const& hist, CCSize
         float x1 = size.width * static_cast<float>(i + 1) / N;
         CCPoint quad[4] = {{x0, 0}, {x0, hs[i]}, {x1, hs[i + 1]}, {x1, 0}};
         draw->drawPolygon(quad, 4, fill, 0.f, fill);
-        draw->drawSegment({x0, hs[i]}, {x1, hs[i + 1]}, 0.8f, line);
+        draw->drawSegment({x0, hs[i]}, {x1, hs[i + 1]}, 0.7f, line);
     }
-    draw->drawSegment({0, 0}, {size.width, 0}, 0.6f, {0.93f, 0.89f, 0.87f, 0.35f});
+    draw->drawSegment({0, 0}, {size.width, 0}, 0.5f, {0.93f, 0.89f, 0.87f, 0.35f});
 }
 
-// Sun (or moon), drifting petals, all behind the panel's content.
-static void addBackdrop(CCNode* layer, CCSize size, CCNode* bg) {
-    layer->reorderChild(bg, -10);
-
+static int hourNow() {
     std::time_t now = std::time(nullptr);
     std::tm local{};
 #ifdef _WIN32
@@ -119,53 +189,72 @@ static void addBackdrop(CCNode* layer, CCSize size, CCNode* bg) {
 #else
     localtime_r(&now, &local);
 #endif
-    int hour = local.tm_hour;
-    auto sun = CCSprite::create("ludo_sun.png"_spr);
-    if (sun) {
-        sun->setScale(0.62f);
-        sun->setPosition({size.width - 78.f, size.height - 74.f});
-        sun->setOpacity(125);
-        if (hour >= 22 || hour < 5) {            // night: a pale moon
-            sun->setColor({205, 214, 255});
-            sun->setOpacity(95);
-        } else if (hour < 8 || hour >= 17) {      // dawn and dusk: a warm sun
-            sun->setColor({255, 150, 90});
-        }
-        sun->runAction(CCRepeatForever::create(CCSequence::create(
-            CCEaseSineInOut::create(CCScaleTo::create(4.f, 0.65f)),
-            CCEaseSineInOut::create(CCScaleTo::create(4.f, 0.60f)),
-            nullptr)));
-        layer->addChild(sun, -5);
-    }
+    return local.tm_hour;
+}
 
-    for (int i = 0; i < 6; i++) {
-        auto petal = CCSprite::create("ludo_petal.png"_spr);
-        if (!petal) break;
-        float fall = 2.6f * static_cast<float>(i % 3) + 9.f;
-        float startX = 40.f + (size.width - 80.f) * static_cast<float>(i) / 5.f;
-        float startY = size.height - 22.f;
-        petal->setScale(0.42f + 0.06f * static_cast<float>(i % 3));
+static bool isNight() {
+    int h = hourNow();
+    return h >= 22 || h < 5;
+}
+
+// Sun (or moon), the blossom branch and drifting petals, all behind the panel's content.
+static void addBackdrop(CCNode* layer, CCSize size, CCNode* bg) {
+    layer->reorderChild(bg, -10);
+    bool move = ambience();
+
+    int hour = hourNow();
+    auto sun = spr("ludo_sun.png"_spr);
+    sun->setPosition({92.f, size.height - 86.f});
+    sun->setOpacity(120);
+    if (isNight()) {                 // night: a pale moon
+        sun->setColor({205, 214, 255});
+        sun->setOpacity(90);
+    } else if (hour < 8 || hour >= 17) {   // dawn and dusk: a warmer sun
+        sun->setColor({255, 160, 110});
+    }
+    if (move) {
+        sun->runAction(CCRepeatForever::create(CCSequence::create(
+            CCEaseSineInOut::create(CCScaleTo::create(4.5f, 1.04f)),
+            CCEaseSineInOut::create(CCScaleTo::create(4.5f, 0.97f)),
+            nullptr)));
+    }
+    layer->addChild(sun, -6);
+
+    auto branch = spr("ludo_branch.png"_spr);
+    branch->setFlipX(true);
+    branch->setAnchorPoint({1.f, 1.f});
+    branch->setPosition({size.width - 4.f, size.height - 4.f});
+    if (move) {
+        branch->runAction(CCRepeatForever::create(CCSequence::create(
+            CCEaseSineInOut::create(CCRotateTo::create(5.5f, 1.2f)),
+            CCEaseSineInOut::create(CCRotateTo::create(5.5f, -0.9f)),
+            nullptr)));
+    }
+    layer->addChild(branch, -5);
+
+    if (!move) return;
+    for (int i = 0; i < 7; i++) {
+        auto petal = sprFile(fmt::format("ludo_petal_{}.png", i % 3));
+        float fall = 9.f + 2.4f * static_cast<float>(i % 3);
+        float startX = 36.f + (size.width - 72.f) * static_cast<float>(i) / 6.f;
+        float startY = size.height - 24.f;
+        float dir = (i % 2) ? 1.f : -1.f;
+        petal->setScale(0.8f + 0.12f * static_cast<float>(i % 3));
         petal->setOpacity(0);
         petal->setPosition({startX, startY});
         petal->runAction(CCSequence::create(
-            CCDelayTime::create(1.4f * static_cast<float>(i)),
+            CCDelayTime::create(1.5f * static_cast<float>(i)),
             CCRepeatForever::create(CCSequence::create(
                 CCPlace::create({startX, startY}),
                 CCSpawn::create(
-                    CCMoveBy::create(fall, {(i % 2 ? 36.f : -36.f), -(size.height - 48.f)}),
-                    CCRotateBy::create(fall, (i % 2 ? 300.f : -300.f)),
-                    CCSequence::create(CCFadeTo::create(1.2f, 170), CCDelayTime::create(fall - 2.8f), CCFadeTo::create(1.6f, 0), nullptr),
+                    CCMoveBy::create(fall, {dir * 38.f, -(size.height - 52.f)}),
+                    CCRotateBy::create(fall, dir * 320.f),
+                    CCSequence::create(CCFadeTo::create(1.3f, 190), CCDelayTime::create(fall - 3.0f), CCFadeTo::create(1.7f, 0), nullptr),
                     nullptr),
                 nullptr)),
             nullptr));
         layer->addChild(petal, -4);
     }
-}
-
-static void openLevelPage(int id) {
-    auto obj = GJSearchObject::create(SearchType::Search, std::to_string(id));
-    auto scene = LevelBrowserLayer::scene(obj);
-    CCDirector::get()->pushScene(CCTransitionFade::create(0.5f, scene));
 }
 
 // ---------------------------------------------------------------- Hub
@@ -181,20 +270,29 @@ Hub* Hub::create() {
 }
 
 bool Hub::init() {
-    if (!Popup::init(460.f, 290.f, "ludo_panel.png"_spr)) return false;
-    this->setTitle("Ludo");
-    addBackdrop(m_mainLayer, m_mainLayer->getContentSize(), m_bgSprite);
+    if (!Popup::init(460.f, 290.f, "ludo_hub_bg.png"_spr)) return false;
+    auto size = m_size;
+    this->setCloseButtonSpr(spr("ludo_ic_x.png"_spr));
+    addBackdrop(m_mainLayer, size, m_bgSprite);
+
+    heading(m_mainLayer, "Ludo", 0.62f, {size.width / 2, size.height - 20.f});
+    auto brush = spr("ludo_brush.png"_spr);
+    brush->setPosition({size.width / 2, size.height - 35.f});
+    m_mainLayer->addChild(brush, 1);
+
     m_root = CCNode::create();
-    m_root->setContentSize(m_mainLayer->getContentSize());
+    m_root->setContentSize(size);
     m_root->setPosition({0, 0});
     m_mainLayer->addChild(m_root);
     this->build();
+
+    this->addFriend(size);
     return true;
 }
 
 void Hub::build() {
     m_root->removeAllChildren();
-    auto size = m_mainLayer->getContentSize();
+    auto size = m_size;
 
     // tab bar
     auto bar = CCMenu::create();
@@ -202,20 +300,19 @@ void Hub::build() {
     m_root->addChild(bar);
     struct T { char const* name; Tab tab; };
     T tabs[] = {{"Overview", Tab::Overview}, {"Levels", Tab::Levels}, {"Collections", Tab::Collections}};
-    float x = size.width / 2 - 125.f;
+    float x = size.width / 2 - 102.f;
     for (auto& t : tabs) {
         bool active = t.tab == m_tab;
-        auto spr = ButtonSprite::create(t.name, 110, true, "goldFont.fnt", active ? "GJ_button_02.png" : "GJ_button_01.png", 28.f, 0.6f);
-        auto btn = CCMenuItemSpriteExtra::create(spr, this, menu_selector(Hub::onTab));
+        auto btn = CCMenuItemSpriteExtra::create(pill(t.name, 98.f, active), this, menu_selector(Hub::onTab));
         btn->setTag(static_cast<int>(t.tab));
-        btn->setPosition({x, size.height - 52.f});
+        btn->setPosition({x, size.height - 54.f});
         bar->addChild(btn);
-        x += 125.f;
+        x += 102.f;
     }
 
-    auto area = CCSize{size.width - 40.f, size.height - 100.f};
+    auto area = CCSize{size.width - 40.f, size.height - 46.f - 76.f};
     auto content = CCNode::create();
-    content->setPosition({20.f, 20.f});
+    content->setPosition({20.f, 46.f});
     content->setContentSize(area);
     m_root->addChild(content);
 
@@ -227,12 +324,93 @@ void Hub::build() {
             else this->buildCollections(content, area);
             break;
     }
+
+    // footer, left of the friend
+    makeLabel(m_root, fmt::format("Ludo {}", Mod::get()->getVersion().toVString()), "chatFont.fnt", 0.6f, {24.f, 20.f}, {0.f, 0.5f})
+        ->setOpacity(110);
 }
 
 void Hub::onTab(CCObject* sender) {
     m_tab = static_cast<Tab>(static_cast<CCNode*>(sender)->getTag());
     m_viewing = -1;
+    this->react(2, 0.5f);
     this->build();
+}
+
+// ---------------------------------------------------------------- Corner friend
+
+void Hub::addFriend(CCSize size) {
+    std::string choice = Mod::get()->getSettingValue<std::string>("friend");
+    std::transform(choice.begin(), choice.end(), choice.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    if (choice != "samurai" && choice != "octopus") return;
+
+    static char const* names[4] = {"neutral", "blink", "happy", "oh"};
+    float scale = 0.6f;
+    auto holder = CCNode::create();
+    holder->setContentSize({120.f, 74.f});
+    for (int i = 0; i < 4; i++) {
+        auto s = sprFile(fmt::format("ludo_{}_{}.png", choice, names[i]));
+        s->setPosition({60.f, 37.f});
+        s->setVisible(i == 0);
+        holder->addChild(s);
+        m_poses[i] = s;
+    }
+    holder->setScale(scale);
+
+    auto menu = CCMenu::create();
+    menu->setPosition({0, 0});
+    m_mainLayer->addChild(menu, 5);   // not in m_root: the tabs rebuild m_root
+    auto btn = CCMenuItemSpriteExtra::create(holder, this, menu_selector(Hub::onFriend));
+    btn->setPosition({size.width - 62.f, 4.f + 74.f * scale / 2});
+    menu->addChild(btn);
+
+    m_sleepy = isNight();
+    m_pose = 0;
+    if (!m_sleepy) this->react(2, 1.6f);   // says hello
+    this->schedule(schedule_selector(Hub::friendTick), 0.1f);
+}
+
+void Hub::showPose(int pose) {
+    if (pose == m_pose) return;
+    m_pose = pose;
+    for (int i = 0; i < 4; i++) {
+        if (m_poses[i]) m_poses[i]->setVisible(i == pose);
+    }
+}
+
+void Hub::react(int pose, float seconds) {
+    if (!m_poses[0]) return;
+    m_reactPose = pose;
+    m_reactUntil = m_clock + seconds;
+    this->showPose(pose);
+}
+
+void Hub::friendTick(float dt) {
+    m_clock += dt;
+    if (m_reactUntil > m_clock) {
+        this->showPose(m_reactPose);
+        return;
+    }
+    if (m_sleepy) {                 // it is late: the friend is dozing
+        this->showPose(1);
+        return;
+    }
+    if (m_blinkUntil > m_clock) {
+        this->showPose(1);
+    } else if (m_clock >= m_nextBlink) {
+        m_blinkUntil = m_clock + 0.16f;
+        m_nextBlink = m_clock + 2.5f + static_cast<float>(std::rand() % 3000) / 1000.f;
+        this->showPose(1);
+    } else {
+        this->showPose(0);
+    }
+}
+
+void Hub::onFriend(CCObject*) {
+    if (!m_poses[0]) return;
+    bool startled = (std::rand() % 4) == 0;
+    m_sleepy = false;   // a poke wakes it up
+    this->react(startled ? 3 : 2, 1.4f);
 }
 
 // ---------------------------------------------------------------- Overview
@@ -240,7 +418,7 @@ void Hub::onTab(CCObject* sender) {
 void Hub::buildOverview(CCNode* root, CCSize area) {
     auto& st = Store::get();
     if (st.levelCount() == 0) {
-        makeLabel(root, "Nothing tracked yet", "goldFont.fnt", 0.8f, {area.width / 2, area.height / 2 + 14});
+        heading(root, "Nothing tracked yet", 0.5f, {area.width / 2, area.height / 2 + 14});
         makeLabel(root, "Play an online level and your stats show up here.", "chatFont.fnt", 0.8f, {area.width / 2, area.height / 2 - 12});
         return;
     }
@@ -253,31 +431,32 @@ void Hub::buildOverview(CCNode* root, CCSize area) {
         {static_cast<double>(st.totalCompletions()), false, "completions"},
         {static_cast<double>(st.levelCount()), false, "levels"},
     };
+    bool animate = ambience();
     float tileW = area.width / 5.f;
     for (int i = 0; i < 5; i++) {
         float cx = tileW * (static_cast<float>(i) + 0.5f);
-        auto bg = makeCard({tileW - 8.f, 52.f}, 210);
-        bg->setPosition({cx, area.height - 30.f});
+        auto bg = card({tileW - 8.f, 52.f}, 235);
+        bg->setPosition({cx, area.height - 28.f});
         root->addChild(bg);
-        auto num = CountUp::create(tiles[i].value, tiles[i].isTime, 0.5f, "bigFont.fnt");
+        auto num = CountUp::create(tiles[i].value, tiles[i].isTime, 0.5f, animate);
         num->setPosition({cx, area.height - 22.f});
         root->addChild(num);
-        makeLabel(root, tiles[i].caption, "chatFont.fnt", 0.7f, {cx, area.height - 44.f});
+        makeLabel(root, tiles[i].caption, "chatFont.fnt", 0.7f, {cx, area.height - 42.f})->setOpacity(190);
     }
 
     // left: most played
-    float colTop = area.height - 74.f;
-    makeLabel(root, "Most played", "goldFont.fnt", 0.6f, {4.f, colTop}, {0.f, 0.5f});
+    float colTop = area.height - 72.f;
+    heading(root, "Most played", 0.34f, {4.f, colTop}, {0.f, 0.5f}, {255, 120, 130});
     auto top = st.byTime();
-    float y = colTop - 24.f;
+    float y = colTop - 22.f;
     int shown = 0;
     for (auto* l : top) {
         if (l->seconds < 1.f && shown > 0) break;
         if (shown >= 4) break;
         std::string name = l->name.empty() ? fmt::format("Level {}", l->id) : l->name;
-        makeLabel(root, fmt::format("{}.  {}", shown + 1, shorten(name, 17)), "bigFont.fnt", 0.36f, {4.f, y}, {0.f, 0.5f});
-        makeLabel(root, formatDuration(l->seconds), "chatFont.fnt", 0.75f, {196.f, y}, {1.f, 0.5f});
-        y -= 22.f;
+        makeLabel(root, fmt::format("{}.  {}", shown + 1, shorten(name, 17)), "bigFont.fnt", 0.34f, {4.f, y}, {0.f, 0.5f});
+        makeLabel(root, formatDuration(l->seconds), "chatFont.fnt", 0.75f, {196.f, y}, {1.f, 0.5f})->setOpacity(200);
+        y -= 20.f;
         shown++;
     }
 
@@ -290,29 +469,28 @@ void Hub::buildOverview(CCNode* root, CCSize area) {
         if (sum > worstSum) { worstSum = sum; worst = l; }
     }
     float mx = 220.f, mw = area.width - mx - 4.f;
-    makeLabel(root, "Death mountain", "goldFont.fnt", 0.6f, {mx, colTop}, {0.f, 0.5f});
+    heading(root, "Death mountain", 0.34f, {mx, colTop}, {0.f, 0.5f}, {255, 120, 130});
     if (!worst) {
-        makeLabel(root, "Play a level and the places you die show up here.", "chatFont.fnt", 0.7f, {mx + mw / 2, colTop - 56.f});
+        makeLabel(root, "Play a level and the places you die show up here.", "chatFont.fnt", 0.7f, {mx + mw / 2, colTop - 44.f});
         return;
     }
     std::string wn = worst->name.empty() ? fmt::format("Level {}", worst->id) : worst->name;
-    makeLabel(root, shorten(wn, 24), "chatFont.fnt", 0.7f, {mx + mw, colTop}, {1.f, 0.5f});
+    makeLabel(root, shorten(wn, 24), "chatFont.fnt", 0.7f, {mx + mw, colTop}, {1.f, 0.5f})->setOpacity(200);
 
-    auto frame = makeCard({mw, 84.f}, 150);
-    frame->setAnchorPoint({0, 0});
-    frame->setPosition({mx, colTop - 100.f});
+    auto frame = card({mw, 80.f}, 190);
+    frame->setPosition({mx + mw / 2, 2.f + 40.f});
     root->addChild(frame);
-    auto peakNode = CCNode::create();
-    peakNode->setPosition({mx + 8.f, colTop - 92.f});
-    root->addChild(peakNode);
-    float gw = mw - 16.f;
-    drawMountain(peakNode, worst->hist, {gw, 54.f});
 
     int peakIdx = 0;
     for (int i = 1; i < 20; i++) if (worst->hist[i] > worst->hist[peakIdx]) peakIdx = i;
-    makeLabel(root, fmt::format("most deaths at {}-{}%", peakIdx * 5, peakIdx * 5 + 5), "chatFont.fnt", 0.65f, {mx + mw / 2, colTop - 18.f});
-    makeLabel(root, "0%", "chatFont.fnt", 0.55f, {mx + 8.f, colTop - 97.f}, {0.f, 0.5f});
-    makeLabel(root, "100%", "chatFont.fnt", 0.55f, {mx + mw - 8.f, colTop - 97.f}, {1.f, 0.5f});
+    makeLabel(root, fmt::format("most deaths at {}-{}%", peakIdx * 5, peakIdx * 5 + 5), "chatFont.fnt", 0.65f, {mx + mw / 2, 70.f});
+
+    auto graph = CCNode::create();
+    graph->setPosition({mx + 8.f, 17.f});
+    root->addChild(graph);
+    drawMountain(graph, worst->hist, {mw - 16.f, 40.f});
+    makeLabel(root, "0%", "chatFont.fnt", 0.55f, {mx + 8.f, 10.f}, {0.f, 0.5f})->setOpacity(150);
+    makeLabel(root, "100%", "chatFont.fnt", 0.55f, {mx + mw - 8.f, 10.f}, {1.f, 0.5f})->setOpacity(150);
 }
 
 // ---------------------------------------------------------------- Levels
@@ -325,7 +503,8 @@ void Hub::onFavFilter(CCObject*) {
 void Hub::onFav(CCObject* sender) {
     int id = static_cast<CCNode*>(sender)->getTag();
     if (auto* l = Store::get().find(id)) {
-        Store::get().toggleFavorite(id, l->name, l->creator);
+        bool now = Store::get().toggleFavorite(id, l->name, l->creator);
+        if (now) this->react(2, 1.2f);
     }
     this->build();
 }
@@ -341,18 +520,19 @@ void Hub::buildLevels(CCNode* root, CCSize area) {
     auto fm = CCMenu::create();
     fm->setPosition({0, 0});
     root->addChild(fm);
-    auto toggler = CCMenuItemToggler::createWithStandardSprites(this, menu_selector(Hub::onFavFilter), 0.6f);
+    auto toggler = CCMenuItemToggler::create(
+        spr("ludo_check_off.png"_spr, 0.85f), spr("ludo_check_on.png"_spr, 0.85f), this, menu_selector(Hub::onFavFilter));
     toggler->toggle(m_favOnly);
     toggler->setPosition({14.f, area.height - 12.f});
     fm->addChild(toggler);
-    makeLabel(root, "Favorites only", "chatFont.fnt", 0.8f, {32.f, area.height - 12.f}, {0.f, 0.5f});
+    makeLabel(root, "Favorites only", "chatFont.fnt", 0.8f, {30.f, area.height - 12.f}, {0.f, 0.5f});
 
     auto list = st.byRecent();
     if (m_favOnly) {
         list.erase(std::remove_if(list.begin(), list.end(), [](LevelStat* l) { return !l->favorite; }), list.end());
     }
     if (list.empty()) {
-        makeLabel(root, m_favOnly ? "No favorites yet. Star a level from its page." : "No levels yet.", "chatFont.fnt", 0.9f, {area.width / 2, area.height / 2});
+        makeLabel(root, m_favOnly ? "No favorites yet. Tap the blossom on a level's page." : "No levels yet.", "chatFont.fnt", 0.9f, {area.width / 2, area.height / 2});
         return;
     }
 
@@ -362,59 +542,55 @@ void Hub::buildLevels(CCNode* root, CCSize area) {
     scroll->m_contentLayer->setLayout(ScrollLayer::createDefaultListLayout(4.f));
     root->addChild(scroll);
 
+    float W = area.width;
     for (auto* l : list) {
         auto row = CCNode::create();
-        row->setContentSize({area.width, 34.f});
+        row->setContentSize({W, 34.f});
 
-        auto bg = makeCard({area.width, 34.f}, 200);
-        bg->setAnchorPoint({0, 0});
+        auto bg = card({W, 34.f}, 225);
+        bg->setPosition({W / 2, 17.f});
         row->addChild(bg);
 
         std::string name = l->name.empty() ? fmt::format("Level {}", l->id) : l->name;
         makeLabel(row, shorten(name, 30), "bigFont.fnt", 0.42f, {10.f, 23.f}, {0.f, 0.5f});
         makeLabel(row, fmt::format("{}   {} tries   {} deaths", formatDuration(l->seconds), l->attempts, l->deaths),
-            "chatFont.fnt", 0.7f, {10.f, 9.f}, {0.f, 0.5f});
+            "chatFont.fnt", 0.7f, {10.f, 9.f}, {0.f, 0.5f})->setOpacity(190);
+
+        // best percent as a brush stroke
+        float barW = 60.f, barX = W - 168.f;
+        auto track = nine("ludo_pill_off.png"_spr, {barW, 6.f}, NineSlice::Insets{2.f, 8.f, 2.f, 8.f});
+        track->setPosition({barX + barW / 2, 9.f});
+        track->setOpacity(160);
+        row->addChild(track);
+        if (l->best > 0) {
+            float fw = std::max(8.f, barW * static_cast<float>(l->best) / 100.f);
+            auto fillBar = nine("ludo_pill_on.png"_spr, {fw, 6.f}, NineSlice::Insets{2.f, 8.f, 2.f, 8.f});
+            fillBar->setPosition({barX + fw / 2, 9.f});
+            row->addChild(fillBar);
+        }
+        makeLabel(row, fmt::format("{}%", l->best), "chatFont.fnt", 0.55f, {barX + barW + 4.f, 9.f}, {0.f, 0.5f})->setOpacity(170);
+
+        // red seal for levels you have beaten
+        if (l->completions > 0) {
+            auto stamp = spr("ludo_stamp.png"_spr, 0.85f);
+            stamp->setRotation(-6.f);
+            stamp->setPosition({W - 86.f, 17.f});
+            row->addChild(stamp);
+        }
 
         auto menu = CCMenu::create();
         menu->setPosition({0, 0});
         row->addChild(menu);
 
-        auto star = CCSprite::create(l->favorite ? "ludo_blossom_on.png"_spr : "ludo_blossom_off.png"_spr);
-        star->setScale(0.5f);
-        auto favBtn = CCMenuItemSpriteExtra::create(star, this, menu_selector(Hub::onFav));
+        auto favBtn = CCMenuItemSpriteExtra::create(
+            spr(l->favorite ? "ludo_blossom_on.png"_spr : "ludo_blossom_off.png"_spr, 0.85f), this, menu_selector(Hub::onFav));
         favBtn->setTag(l->id);
-        favBtn->setPosition({area.width - 54.f, 17.f});
+        favBtn->setPosition({W - 54.f, 17.f});
         menu->addChild(favBtn);
 
-        // red seal for levels you have beaten
-        if (l->completions > 0) {
-            auto stamp = CCSprite::create("ludo_stamp.png"_spr);
-            stamp->setScale(0.36f);
-            stamp->setRotation(-6.f);
-            stamp->setPosition({area.width - 88.f, 17.f});
-            row->addChild(stamp);
-        }
-
-        // best percent as a brush stroke under the stats line
-        float barW = 60.f;
-        auto track = makeCard({barW, 5.f}, 120);
-        track->setAnchorPoint({0, 0.5f});
-        track->setPosition({area.width - 160.f, 8.f});
-        row->addChild(track);
-        if (l->best > 0) {
-            auto fillBar = makeCard({std::max(8.f, barW * static_cast<float>(l->best) / 100.f), 5.f}, 255);
-            fillBar->setColor({232, 52, 70});
-            fillBar->setAnchorPoint({0, 0.5f});
-            fillBar->setPosition({area.width - 160.f, 8.f});
-            row->addChild(fillBar);
-        }
-
-        auto go = CCSprite::createWithSpriteFrameName("GJ_arrow_03_001.png");
-        go->setFlipX(true);
-        go->setScale(0.45f);
-        auto goBtn = CCMenuItemSpriteExtra::create(go, this, menu_selector(Hub::onOpenLevel));
+        auto goBtn = CCMenuItemSpriteExtra::create(spr("ludo_ic_open.png"_spr, 0.8f), this, menu_selector(Hub::onOpenLevel));
         goBtn->setTag(l->id);
-        goBtn->setPosition({area.width - 20.f, 17.f});
+        goBtn->setPosition({W - 20.f, 17.f});
         menu->addChild(goBtn);
 
         scroll->m_contentLayer->addChild(row);
@@ -437,19 +613,23 @@ void Hub::onNewCollection(CCObject*) {
             return nullptr;
         }
         bool setup(Hub* h) {
-            if (!Popup::init(280.f, 140.f, "ludo_panel.png"_spr)) return false;
+            if (!Popup::init(290.f, 150.f, "ludo_panel.png"_spr)) return false;
             hub = h;
-            this->setTitle("New collection");
-            auto sz = m_mainLayer->getContentSize();
+            auto sz = m_size;
+            this->setCloseButtonSpr(spr("ludo_ic_x.png"_spr));
+            heading(m_mainLayer, "New collection", 0.5f, {sz.width / 2, sz.height - 24.f});
+            auto brush = spr("ludo_brush.png"_spr, 0.8f);
+            brush->setPosition({sz.width / 2, sz.height - 38.f});
+            m_mainLayer->addChild(brush);
             input = TextInput::create(220.f, "Name", "bigFont.fnt");
             input->setMaxCharCount(30);
-            input->setPosition({sz.width / 2, sz.height / 2 + 2.f});
+            input->setPosition({sz.width / 2, sz.height / 2 - 6.f});
             m_mainLayer->addChild(input);
             auto menu = CCMenu::create();
             menu->setPosition({0, 0});
             m_mainLayer->addChild(menu);
-            auto btn = CCMenuItemSpriteExtra::create(ButtonSprite::create("Create", 90, true, "goldFont.fnt", "GJ_button_01.png", 28.f, 0.7f), this, menu_selector(NamePopup::onCreate));
-            btn->setPosition({sz.width / 2, 28.f});
+            auto btn = CCMenuItemSpriteExtra::create(pill("Create", 96.f, true), this, menu_selector(NamePopup::onCreate));
+            btn->setPosition({sz.width / 2, 26.f});
             menu->addChild(btn);
             return true;
         }
@@ -460,6 +640,7 @@ void Hub::onNewCollection(CCObject*) {
             if (name.empty()) return;
             Store::get().createCollection(name);
             hub->build();
+            hub->react(2, 1.4f);
             this->onClose(nullptr);
         }
     };
@@ -484,6 +665,7 @@ void Hub::onDeleteCollection(CCObject* sender) {
         [this, idx](FLAlertLayer*, bool yes) {
             if (!yes) return;
             Store::get().deleteCollection(idx);
+            this->react(3, 1.4f);
             this->build();
         });
 }
@@ -500,13 +682,13 @@ void Hub::buildCollections(CCNode* root, CCSize area) {
     auto menu = CCMenu::create();
     menu->setPosition({0, 0});
     root->addChild(menu);
-    auto add = CCMenuItemSpriteExtra::create(ButtonSprite::create("New collection", 130, true, "goldFont.fnt", "GJ_button_01.png", 26.f, 0.55f), this, menu_selector(Hub::onNewCollection));
-    add->setPosition({area.width - 70.f, area.height - 12.f});
+    auto add = CCMenuItemSpriteExtra::create(pill("New collection", 132.f, true, 24.f), this, menu_selector(Hub::onNewCollection));
+    add->setPosition({area.width - 66.f, area.height - 12.f});
     menu->addChild(add);
 
     if (cols.empty()) {
-        makeLabel(root, "No collections yet", "goldFont.fnt", 0.7f, {area.width / 2, area.height / 2 + 10.f});
-        makeLabel(root, "Make one here, then add levels from a level's page.", "chatFont.fnt", 0.8f, {area.width / 2, area.height / 2 - 12.f});
+        heading(root, "No collections yet", 0.5f, {area.width / 2, area.height / 2 + 10.f});
+        makeLabel(root, "Make one here, then add levels from a level's page.", "chatFont.fnt", 0.8f, {area.width / 2, area.height / 2 - 14.f});
         return;
     }
 
@@ -515,30 +697,30 @@ void Hub::buildCollections(CCNode* root, CCSize area) {
     scroll->m_contentLayer->setLayout(ScrollLayer::createDefaultListLayout(4.f));
     root->addChild(scroll);
 
+    float W = area.width;
     for (size_t i = 0; i < cols.size(); i++) {
         auto row = CCNode::create();
-        row->setContentSize({area.width, 34.f});
-        auto bg = makeCard({area.width, 34.f}, 200);
-        bg->setAnchorPoint({0, 0});
+        row->setContentSize({W, 34.f});
+        auto bg = nine("ludo_scroll_row.png"_spr, {W, 34.f}, NineSlice::Insets{10.f, 26.f, 10.f, 26.f});
+        bg->setPosition({W / 2, 17.f});
         row->addChild(bg);
 
         double secs = 0;
         for (int id : cols[i].ids) if (auto* l = Store::get().find(id)) secs += l->seconds;
-        makeLabel(row, shorten(cols[i].name, 28), "bigFont.fnt", 0.45f, {10.f, 23.f}, {0.f, 0.5f});
-        makeLabel(row, fmt::format("{} levels   {} played", cols[i].ids.size(), formatDuration(secs)), "chatFont.fnt", 0.7f, {10.f, 9.f}, {0.f, 0.5f});
+        heading(row, shorten(cols[i].name, 26), 0.36f, {34.f, 22.f}, {0.f, 0.5f});
+        makeLabel(row, fmt::format("{} levels   {} played", cols[i].ids.size(), formatDuration(secs)), "chatFont.fnt", 0.7f, {34.f, 9.f}, {0.f, 0.5f})
+            ->setOpacity(190);
 
         auto m = CCMenu::create();
         m->setPosition({0, 0});
         row->addChild(m);
-        auto view = CCMenuItemSpriteExtra::create(ButtonSprite::create("Open", 60, true, "goldFont.fnt", "GJ_button_01.png", 24.f, 0.5f), this, menu_selector(Hub::onViewCollection));
+        auto view = CCMenuItemSpriteExtra::create(pill("Open", 62.f, true, 24.f), this, menu_selector(Hub::onViewCollection));
         view->setTag(static_cast<int>(i));
-        view->setPosition({area.width - 80.f, 17.f});
+        view->setPosition({W - 82.f, 17.f});
         m->addChild(view);
-        auto del = CCSprite::createWithSpriteFrameName("GJ_deleteIcon_001.png");
-        del->setScale(0.6f);
-        auto delBtn = CCMenuItemSpriteExtra::create(del, this, menu_selector(Hub::onDeleteCollection));
+        auto delBtn = CCMenuItemSpriteExtra::create(spr("ludo_ic_x.png"_spr, 0.8f), this, menu_selector(Hub::onDeleteCollection));
         delBtn->setTag(static_cast<int>(i));
-        delBtn->setPosition({area.width - 22.f, 17.f});
+        delBtn->setPosition({W - 36.f, 17.f});
         m->addChild(delBtn);
 
         scroll->m_contentLayer->addChild(row);
@@ -559,13 +741,13 @@ void Hub::buildCollectionDetail(CCNode* root, CCSize area) {
     auto menu = CCMenu::create();
     menu->setPosition({0, 0});
     root->addChild(menu);
-    auto back = CCMenuItemSpriteExtra::create(ButtonSprite::create("Back", 60, true, "goldFont.fnt", "GJ_button_01.png", 24.f, 0.5f), this, menu_selector(Hub::onBack));
-    back->setPosition({34.f, area.height - 12.f});
+    auto back = CCMenuItemSpriteExtra::create(spr("ludo_ic_back.png"_spr, 0.9f), this, menu_selector(Hub::onBack));
+    back->setPosition({14.f, area.height - 12.f});
     menu->addChild(back);
-    makeLabel(root, shorten(col.name, 30), "goldFont.fnt", 0.7f, {area.width / 2 + 20.f, area.height - 12.f});
+    heading(root, shorten(col.name, 30), 0.44f, {34.f, area.height - 12.f}, {0.f, 0.5f});
 
     if (col.ids.empty()) {
-        makeLabel(root, "Empty. Add levels from a level's page (folder button).", "chatFont.fnt", 0.8f, {area.width / 2, area.height / 2});
+        makeLabel(root, "Empty. Add levels from a level's page (scroll button).", "chatFont.fnt", 0.8f, {area.width / 2, area.height / 2});
         return;
     }
 
@@ -574,35 +756,37 @@ void Hub::buildCollectionDetail(CCNode* root, CCSize area) {
     scroll->m_contentLayer->setLayout(ScrollLayer::createDefaultListLayout(4.f));
     root->addChild(scroll);
 
+    float W = area.width;
     for (int id : col.ids) {
         auto* l = Store::get().find(id);
         auto row = CCNode::create();
-        row->setContentSize({area.width, 34.f});
-        auto bg = makeCard({area.width, 34.f}, 200);
-        bg->setAnchorPoint({0, 0});
+        row->setContentSize({W, 34.f});
+        auto bg = card({W, 34.f}, 225);
+        bg->setPosition({W / 2, 17.f});
         row->addChild(bg);
 
         std::string name = (l && !l->name.empty()) ? l->name : fmt::format("Level {}", id);
         makeLabel(row, shorten(name, 30), "bigFont.fnt", 0.42f, {10.f, 23.f}, {0.f, 0.5f});
         if (l) {
-            makeLabel(row, fmt::format("{}   {} attempts   {} deaths   best {}%", formatDuration(l->seconds), l->attempts, l->deaths, l->best),
-                "chatFont.fnt", 0.7f, {10.f, 9.f}, {0.f, 0.5f});
+            makeLabel(row, fmt::format("{}   {} tries   {} deaths   best {}%", formatDuration(l->seconds), l->attempts, l->deaths, l->best),
+                "chatFont.fnt", 0.7f, {10.f, 9.f}, {0.f, 0.5f})->setOpacity(190);
+            if (l->completions > 0) {
+                auto stamp = spr("ludo_stamp.png"_spr, 0.85f);
+                stamp->setRotation(-6.f);
+                stamp->setPosition({W - 86.f, 17.f});
+                row->addChild(stamp);
+            }
         }
         auto m = CCMenu::create();
         m->setPosition({0, 0});
         row->addChild(m);
-        auto go = CCSprite::createWithSpriteFrameName("GJ_arrow_03_001.png");
-        go->setFlipX(true);
-        go->setScale(0.45f);
-        auto goBtn = CCMenuItemSpriteExtra::create(go, this, menu_selector(Hub::onOpenLevel));
+        auto goBtn = CCMenuItemSpriteExtra::create(spr("ludo_ic_open.png"_spr, 0.8f), this, menu_selector(Hub::onOpenLevel));
         goBtn->setTag(id);
-        goBtn->setPosition({area.width - 54.f, 17.f});
+        goBtn->setPosition({W - 54.f, 17.f});
         m->addChild(goBtn);
-        auto x = CCSprite::createWithSpriteFrameName("GJ_deleteIcon_001.png");
-        x->setScale(0.55f);
-        auto xBtn = CCMenuItemSpriteExtra::create(x, this, menu_selector(Hub::onRemoveFromCollection));
+        auto xBtn = CCMenuItemSpriteExtra::create(spr("ludo_ic_x.png"_spr, 0.8f), this, menu_selector(Hub::onRemoveFromCollection));
         xBtn->setTag(id);
-        xBtn->setPosition({area.width - 20.f, 17.f});
+        xBtn->setPosition({W - 20.f, 17.f});
         m->addChild(xBtn);
 
         scroll->m_contentLayer->addChild(row);
@@ -626,12 +810,17 @@ PickerPopup* PickerPopup::create(int levelID, std::string name, std::string crea
 bool PickerPopup::init(int levelID, std::string name, std::string creator) {
     if (!Popup::init(300.f, 240.f, "ludo_panel.png"_spr)) return false;
     m_levelID = levelID;
-    this->setTitle("Add to collection");
+    this->setCloseButtonSpr(spr("ludo_ic_x.png"_spr));
+    auto size = m_size;
+    heading(m_mainLayer, "Add to collection", 0.5f, {size.width / 2, size.height - 24.f});
+    auto brush = spr("ludo_brush.png"_spr, 0.9f);
+    brush->setPosition({size.width / 2, size.height - 39.f});
+    m_mainLayer->addChild(brush);
+
     // make sure the level exists in the store so the collection can show its name
     Store::get().level(levelID, name, creator);
     Store::get().saveIfDirty();
 
-    auto size = m_mainLayer->getContentSize();
     auto& cols = Store::get().collections();
     if (cols.empty()) {
         makeLabel(m_mainLayer, "No collections yet.", "goldFont.fnt", 0.7f, {size.width / 2, size.height / 2 + 10.f});
@@ -640,21 +829,24 @@ bool PickerPopup::init(int levelID, std::string name, std::string creator) {
         return true;
     }
 
-    auto scroll = ScrollLayer::create({size.width - 40.f, size.height - 80.f});
+    auto scroll = ScrollLayer::create({size.width - 40.f, size.height - 84.f});
     scroll->setPosition({20.f, 20.f});
     scroll->m_contentLayer->setLayout(ScrollLayer::createDefaultListLayout(4.f));
     m_mainLayer->addChild(scroll);
     for (size_t i = 0; i < cols.size(); i++) {
         auto row = CCNode::create();
-        row->setContentSize({size.width - 40.f, 30.f});
-        makeLabel(row, shorten(cols[i].name, 24), "bigFont.fnt", 0.42f, {36.f, 15.f}, {0.f, 0.5f});
+        row->setContentSize({size.width - 40.f, 32.f});
+        auto bg = card({size.width - 40.f, 32.f}, 200);
+        bg->setPosition({(size.width - 40.f) / 2, 16.f});
+        row->addChild(bg);
+        makeLabel(row, shorten(cols[i].name, 24), "bigFont.fnt", 0.42f, {38.f, 16.f}, {0.f, 0.5f});
         auto m = CCMenu::create();
         m->setPosition({0, 0});
         row->addChild(m);
-        auto t = CCMenuItemToggler::createWithStandardSprites(this, menu_selector(PickerPopup::onToggle), 0.7f);
+        auto t = CCMenuItemToggler::create(spr("ludo_check_off.png"_spr), spr("ludo_check_on.png"_spr), this, menu_selector(PickerPopup::onToggle));
         t->toggle(Store::get().inCollection(i, levelID));
         t->setTag(static_cast<int>(i));
-        t->setPosition({16.f, 15.f});
+        t->setPosition({20.f, 16.f});
         m->addChild(t);
         scroll->m_contentLayer->addChild(row);
     }

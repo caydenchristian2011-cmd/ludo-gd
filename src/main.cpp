@@ -10,7 +10,9 @@ class $modify(LudoMenuLayer, MenuLayer) {
     bool init() {
         if (!MenuLayer::init()) return false;
 
-        auto sprite = CCSprite::createWithSpriteFrameName("GJ_statsBtn_001.png");
+        auto sprite = CCSprite::create("ludo_btn_hub.png"_spr);
+        if (!sprite) sprite = CCSprite::createWithSpriteFrameName("GJ_statsBtn_001.png");
+        else sprite->setScale(1.15f);
         auto button = CCMenuItemSpriteExtra::create(sprite, this, menu_selector(LudoMenuLayer::onLudo));
         button->setID("ludo-button"_spr);
         if (auto menu = this->getChildByID("bottom-menu")) {
@@ -34,15 +36,23 @@ class $modify(LudoInfoLayer, LevelInfoLayer) {
         auto menu = this->getChildByID("left-side-menu");
         if (!menu) return true;
 
+        // blossom to favorite, scroll to collect; the images fall back to plain game icons
         bool fav = ludo::Store::get().isFavorite(id);
-        auto on = CircleButtonSprite::createWithSpriteFrameName("GJ_starsIcon_001.png", 0.9f, CircleBaseColor::Green, CircleBaseSize::Small);
-        auto off = CircleButtonSprite::createWithSpriteFrameName("GJ_starsIcon_001.png", 0.9f, CircleBaseColor::Gray, CircleBaseSize::Small);
+        auto makeBtn = [](char const* mine, char const* fallbackFrame, CircleBaseColor color) -> CCNode* {
+            if (auto s = CCSprite::create(mine)) {
+                s->setScale(0.9f);
+                return s;
+            }
+            return CircleButtonSprite::createWithSpriteFrameName(fallbackFrame, 0.9f, color, CircleBaseSize::Small);
+        };
+        auto on = makeBtn("ludo_btn_blossom_on.png"_spr, "GJ_starsIcon_001.png", CircleBaseColor::Green);
+        auto off = makeBtn("ludo_btn_blossom_off.png"_spr, "GJ_starsIcon_001.png", CircleBaseColor::Gray);
         auto star = CCMenuItemToggler::create(off, on, this, menu_selector(LudoInfoLayer::onLudoFav));
         star->toggle(fav);
         star->setID("ludo-favorite"_spr);
         menu->addChild(star);
 
-        auto folder = CircleButtonSprite::createWithSpriteFrameName("folderIcon_001.png", 0.9f, CircleBaseColor::Blue, CircleBaseSize::Small);
+        auto folder = makeBtn("ludo_btn_scroll.png"_spr, "folderIcon_001.png", CircleBaseColor::Blue);
         auto folderBtn = CCMenuItemSpriteExtra::create(folder, this, menu_selector(LudoInfoLayer::onLudoCollect));
         folderBtn->setID("ludo-collections"_spr);
         menu->addChild(folderBtn);

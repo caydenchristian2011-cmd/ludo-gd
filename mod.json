@@ -5,12 +5,46 @@
 	},
 	"id": "caydenchristian2011.ludo",
 	"name": "Ludo",
-	"version": "v0.1.0",
+	"version": "v0.2.0",
 	"developer": "caydenchristian2011",
 	"description": "Your Geometry Dash stats and level collections in one place.",
 	"repository": "https://github.com/caydenchristian2011-cmd/ludo-gd",
-	"tags": ["utility", "interface"],
+	"tags": [
+		"utility",
+		"interface"
+	],
 	"dependencies": {
 		"geode.node-ids": ">=v1.23.3"
+	},
+	"resources": {
+		"sprites": [
+			"resources/*.png"
+		],
+		"fonts": {
+			"Fraunces": {
+				"path": "resources/Fraunces.ttf",
+				"size": 64,
+				"charset": "32-126,8226"
+			}
+		}
+	},
+	"settings": {
+		"friend": {
+			"name": "Corner friend",
+			"description": "A little friend that lives in the corner of the hub.",
+			"type": "string",
+			"default": "Samurai",
+			"one-of": [
+				"Samurai",
+				"Octopus",
+				"Off"
+			]
+		},
+		"ambience": {
+			"name": "Falling blossoms",
+			"description": "The sun, petals and branch in the hub move gently. Turn off for a still hub.",
+			"type": "bool",
+			"default": true
+		}
 	}
 }
