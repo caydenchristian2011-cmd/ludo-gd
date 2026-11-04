@@ -1,7 +1,16 @@
+# v0.2.0
+
+- New look matching the Ludo launcher: ink-wash panel, red sun (a moon at night), blossom branch and falling petals.
+- Overview: numbers count up, and a death mountain shows where in your most-died level you die.
+- Levels: blossom favorites, red "complete" seals and a best-percent bar on every row.
+- Collections look like scrolls; buttons on the level page are redrawn to match.
+- A corner friend (samurai or octopus) that blinks, reacts and dozes at night. Poke it.
+- Settings: choose the friend (or turn it off) and turn the motion off for a still hub.
+- Deaths are now recorded by where in the level they happen.
+
 # v0.1.0
 
 - Tracks play time, attempts, deaths, completions and best percent for every online level you play.
 - Ludo hub (button on the main menu): Overview, Levels and Collections tabs.
-- Favorites: a star on every level page, and a favorites filter in the hub.
-- Collections: make your own, add a level from its page (folder button), open or remove levels in the hub.
+- Favorites and collections, with buttons on every level page.
 - Everything is saved on your computer in the mod's save folder (stats.json).

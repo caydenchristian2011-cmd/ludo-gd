@@ -246,6 +246,18 @@ def pill(on):
     return page(body, w=w, h=h), (w, h)
 
 
+def bar(fill):
+    w, h = 32, 6
+    if fill:
+        bg = 'linear-gradient(180deg,#ff6676,#cf2238)'
+        sh = 'inset 0 .5px 0 rgba(255,255,255,.35)'
+    else:
+        bg = 'rgba(236,228,222,.14)'
+        sh = 'inset 0 0 0 .5px rgba(236,228,222,.12)'
+    body = f'<div style="position:absolute;inset:0;border-radius:3px;background:{bg};box-shadow:{sh}"></div>'
+    return page(body, w=w, h=h), (w, h)
+
+
 def scroll_row():
     w, h = 120, 34
     body = f"""<svg width="{w}" height="{h}" viewBox="0 0 {w} {h}"><defs>
@@ -311,6 +323,8 @@ def make_all():
         'ludo_pill_on': lambda: pill(True),
         'ludo_pill_off': lambda: pill(False),
         'ludo_scroll_row': scroll_row,
+        'ludo_bar_track': lambda: bar(False),
+        'ludo_bar_fill': lambda: bar(True),
         'ludo_brush': brush_line,
     }
     for i in range(3):

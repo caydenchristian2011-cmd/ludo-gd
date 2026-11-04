@@ -2,6 +2,7 @@
 #include "Store.hpp"
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cmath>
 #include <cstdlib>
 #include <ctime>
@@ -557,14 +558,13 @@ void Hub::buildLevels(CCNode* root, CCSize area) {
             "chatFont.fnt", 0.7f, {10.f, 9.f}, {0.f, 0.5f})->setOpacity(190);
 
         // best percent as a brush stroke
-        float barW = 60.f, barX = W - 168.f;
-        auto track = nine("ludo_pill_off.png"_spr, {barW, 6.f}, NineSlice::Insets{2.f, 8.f, 2.f, 8.f});
+        float barW = 52.f, barX = W - 184.f;
+        auto track = nine("ludo_bar_track.png"_spr, {barW, 6.f}, NineSlice::Insets{2.f, 3.f, 2.f, 3.f});
         track->setPosition({barX + barW / 2, 9.f});
-        track->setOpacity(160);
         row->addChild(track);
         if (l->best > 0) {
             float fw = std::max(8.f, barW * static_cast<float>(l->best) / 100.f);
-            auto fillBar = nine("ludo_pill_on.png"_spr, {fw, 6.f}, NineSlice::Insets{2.f, 8.f, 2.f, 8.f});
+            auto fillBar = nine("ludo_bar_fill.png"_spr, {fw, 6.f}, NineSlice::Insets{2.f, 3.f, 2.f, 3.f});
             fillBar->setPosition({barX + fw / 2, 9.f});
             row->addChild(fillBar);
         }
