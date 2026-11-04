@@ -151,14 +151,12 @@ private:
     float m_t = 0;
 };
 
-// Ink mountain: one peak for every slice of the level where you die.
-static void drawMountain(CCNode* parent, std::array<int, 20> const& hist, CCSize size) {
+// Ink mountain: one peak for every slice of the level where you die, drawn as a near ridge
+// over a dusk sky, with a far ridge behind it and a red flag on the tallest peak.
+static void drawMountain(CCNode* parent, std::array<int, 20> const& hist, float width, float base, float maxH) {
     int peak = 0;
     for (int h : hist) peak = std::max(peak, h);
     if (peak <= 0) return;
-
-    auto draw = CCDrawNode::create();
-    parent->addChild(draw);
 
     constexpr int N = 80;   // sample points across the width
     std::vector<float> hs(N + 1);
@@ -169,18 +167,45 @@ static void drawMountain(CCNode* parent, std::array<int, 20> const& hist, CCSize
         float f = pos - static_cast<float>(a);
         f = f * f * (3.f - 2.f * f);   // smoothstep
         float v = static_cast<float>(hist[a]) * (1.f - f) + static_cast<float>(hist[b]) * f;
-        hs[i] = v / static_cast<float>(peak) * size.height;
+        hs[i] = base + 3.f + v / static_cast<float>(peak) * maxH;
     }
-    ccColor4F fill = {0.93f, 0.89f, 0.87f, 0.16f};
-    ccColor4F line = {1.f, 0.28f, 0.34f, 1.f};
+
+    auto draw = CCDrawNode::create();
+    parent->addChild(draw);
+    float x0 = 1.f, span = width - 2.f;
+
+    // far ridge: the same range, shifted and lower, so the scene has depth
+    std::vector<float> far(N + 1);
+    for (int i = 0; i <= N; i++) {
+        int j = std::min(N, i + 14);
+        far[i] = base + 3.f + (hs[j] - base - 3.f) * 0.55f;
+    }
+    ccColor4F farFill = {0.17f, 0.07f, 0.11f, 1.f};
+    ccColor4F farLine = {0.62f, 0.25f, 0.33f, 0.75f};
+    ccColor4F nearFill = {0.043f, 0.031f, 0.051f, 1.f};
+    ccColor4F rim = {1.f, 0.28f, 0.34f, 1.f};
     for (int i = 0; i < N; i++) {
-        float x0 = size.width * static_cast<float>(i) / N;
-        float x1 = size.width * static_cast<float>(i + 1) / N;
-        CCPoint quad[4] = {{x0, 0}, {x0, hs[i]}, {x1, hs[i + 1]}, {x1, 0}};
-        draw->drawPolygon(quad, 4, fill, 0.f, fill);
-        draw->drawSegment({x0, hs[i]}, {x1, hs[i + 1]}, 0.7f, line);
+        float xa = x0 + span * static_cast<float>(i) / N;
+        float xb = x0 + span * static_cast<float>(i + 1) / N;
+        CCPoint q[4] = {{xa, base - 1.f}, {xa, far[i]}, {xb, far[i + 1]}, {xb, base - 1.f}};
+        draw->drawPolygon(q, 4, farFill, 0.f, farFill);
+        draw->drawSegment({xa, far[i]}, {xb, far[i + 1]}, 0.5f, farLine);
     }
-    draw->drawSegment({0, 0}, {size.width, 0}, 0.5f, {0.93f, 0.89f, 0.87f, 0.35f});
+    for (int i = 0; i < N; i++) {
+        float xa = x0 + span * static_cast<float>(i) / N;
+        float xb = x0 + span * static_cast<float>(i + 1) / N;
+        CCPoint q[4] = {{xa, base - 1.f}, {xa, hs[i]}, {xb, hs[i + 1]}, {xb, base - 1.f}};
+        draw->drawPolygon(q, 4, nearFill, 0.f, nearFill);
+        draw->drawSegment({xa, hs[i]}, {xb, hs[i + 1]}, 0.8f, rim);
+    }
+
+    // a small flag on the tallest peak
+    int top = 0;
+    for (int i = 1; i <= N; i++) if (hs[i] > hs[top]) top = i;
+    float fx = x0 + span * static_cast<float>(top) / N, fy = hs[top];
+    draw->drawSegment({fx, fy}, {fx, fy + 9.f}, 0.5f, {1.f, 0.9f, 0.88f, 0.95f});
+    CCPoint flag[3] = {{fx, fy + 9.f}, {fx + 7.f, fy + 6.5f}, {fx, fy + 4.f}};
+    draw->drawPolygon(flag, 3, rim, 0.f, rim);
 }
 
 static int hourNow() {
@@ -199,6 +224,8 @@ static bool isNight() {
     return h >= 22 || h < 5;
 }
 
+static constexpr float kBranchScale = 0.75f;
+
 // How much of the branch is lit: levels you have beaten out of levels tracked.
 static float branchProgress() {
     auto& st = Store::get();
@@ -214,18 +241,19 @@ static void addBackdrop(CCNode* layer, CCSize size, CCNode* bg) {
 
     int hour = hourNow();
     auto sun = spr("ludo_sun.png"_spr);
-    sun->setPosition({92.f, size.height - 86.f});
-    sun->setOpacity(120);
+    sun->setScale(0.5f);
+    sun->setPosition({56.f, size.height - 29.f});
+    sun->setOpacity(190);
     if (isNight()) {                 // night: a pale moon
         sun->setColor({205, 214, 255});
-        sun->setOpacity(90);
+        sun->setOpacity(140);
     } else if (hour < 8 || hour >= 17) {   // dawn and dusk: a warmer sun
         sun->setColor({255, 160, 110});
     }
     if (move) {
         sun->runAction(CCRepeatForever::create(CCSequence::create(
-            CCEaseSineInOut::create(CCScaleTo::create(4.5f, 1.04f)),
-            CCEaseSineInOut::create(CCScaleTo::create(4.5f, 0.97f)),
+            CCEaseSineInOut::create(CCScaleTo::create(4.5f, 0.52f)),
+            CCEaseSineInOut::create(CCScaleTo::create(4.5f, 0.48f)),
             nullptr)));
     }
     layer->addChild(sun, -6);
@@ -237,6 +265,7 @@ static void addBackdrop(CCNode* layer, CCSize size, CCNode* bg) {
     branch->setContentSize({kBranchW, kBranchH});
     branch->setAnchorPoint({1.f, 1.f});
     branch->setPosition({size.width - 4.f, size.height - 4.f});
+    branch->setScale(kBranchScale);
 
     auto wood = spr("ludo_branch.png"_spr);
     wood->setFlipX(true);
@@ -285,27 +314,33 @@ static void addBackdrop(CCNode* layer, CCSize size, CCNode* bg) {
     layer->addChild(branch, -5);
 
     if (!move) return;
-    for (int i = 0; i < 7; i++) {
-        auto petal = sprFile(fmt::format("ludo_petal_{}.png", i % 3));
-        float fall = 9.f + 2.4f * static_cast<float>(i % 3);
-        float startX = 36.f + (size.width - 72.f) * static_cast<float>(i) / 6.f;
-        float startY = size.height - 24.f;
-        float dir = (i % 2) ? 1.f : -1.f;
-        petal->setScale(0.8f + 0.12f * static_cast<float>(i % 3));
+    // petals let go of the branch and fade away before they reach the tabs and text
+    CCPoint corner = {size.width - 4.f - kBranchW * kBranchScale, size.height - 4.f - kBranchH * kBranchScale};
+    int made = 0;
+    for (int i = 0; i < kBudCount && made < 6; i += 2) {
+        auto const& bud = kBuds[i];
+        if (bud.y >= 40.f) continue;
+        auto petal = sprFile(fmt::format("ludo_petal_{}.png", made % 3));
+        CCPoint from = {corner.x + (kBranchW - bud.x) * kBranchScale, corner.y + (kBranchH - bud.y) * kBranchScale};
+        float fall = 4.6f + 0.7f * static_cast<float>(made % 3);
+        float dir = (made % 2) ? 1.f : -1.f;
+        petal->setScale(0.7f + 0.1f * static_cast<float>(made % 3));
         petal->setOpacity(0);
-        petal->setPosition({startX, startY});
+        petal->setPosition(from);
         petal->runAction(CCSequence::create(
-            CCDelayTime::create(1.5f * static_cast<float>(i)),
+            CCDelayTime::create(0.9f * static_cast<float>(made)),
             CCRepeatForever::create(CCSequence::create(
-                CCPlace::create({startX, startY}),
+                CCPlace::create(from),
                 CCSpawn::create(
-                    CCMoveBy::create(fall, {dir * 38.f, -(size.height - 52.f)}),
-                    CCRotateBy::create(fall, dir * 320.f),
-                    CCSequence::create(CCFadeTo::create(1.3f, 190), CCDelayTime::create(fall - 3.0f), CCFadeTo::create(1.7f, 0), nullptr),
+                    CCMoveBy::create(fall, {dir * 14.f, -32.f}),
+                    CCRotateBy::create(fall, dir * 240.f),
+                    CCSequence::create(CCFadeTo::create(0.7f, 200), CCDelayTime::create(fall - 2.1f), CCFadeTo::create(1.4f, 0), nullptr),
                     nullptr),
+                CCDelayTime::create(2.5f),
                 nullptr)),
             nullptr));
         layer->addChild(petal, -4);
+        made++;
     }
 }
 
@@ -327,9 +362,10 @@ bool Hub::init() {
     this->setCloseButtonSpr(spr("ludo_ic_x.png"_spr));
     addBackdrop(m_mainLayer, size, m_bgSprite);
 
-    heading(m_mainLayer, "Ludo", 0.62f, {size.width / 2, size.height - 20.f});
+    heading(m_mainLayer, "Ludo", 0.62f, {150.f, size.height - 22.f});
     auto brush = spr("ludo_brush.png"_spr);
-    brush->setPosition({size.width / 2, size.height - 35.f});
+    brush->setScale(0.9f);
+    brush->setPosition({150.f, size.height - 37.f});
     m_mainLayer->addChild(brush, 1);
 
     m_root = CCNode::create();
@@ -352,17 +388,17 @@ void Hub::build() {
     m_root->addChild(bar);
     struct T { char const* name; Tab tab; };
     T tabs[] = {{"Overview", Tab::Overview}, {"Levels", Tab::Levels}, {"Collections", Tab::Collections}};
-    float x = size.width / 2 - 102.f;
+    float x = 82.f;
     for (auto& t : tabs) {
         bool active = t.tab == m_tab;
-        auto btn = CCMenuItemSpriteExtra::create(pill(t.name, 98.f, active), this, menu_selector(Hub::onTab));
+        auto btn = CCMenuItemSpriteExtra::create(pill(t.name, 92.f, active), this, menu_selector(Hub::onTab));
         btn->setTag(static_cast<int>(t.tab));
-        btn->setPosition({x, size.height - 54.f});
+        btn->setPosition({x, size.height - 62.f});
         bar->addChild(btn);
-        x += 102.f;
+        x += 96.f;
     }
 
-    auto area = CCSize{size.width - 40.f, size.height - 46.f - 76.f};
+    auto area = CCSize{size.width - 40.f, 162.f};
     auto content = CCNode::create();
     content->setPosition({20.f, 46.f});
     content->setContentSize(area);
@@ -398,7 +434,7 @@ void Hub::addFriend(CCSize size) {
     if (choice != "samurai" && choice != "octopus") return;
 
     static char const* names[4] = {"neutral", "blink", "happy", "oh"};
-    float scale = 0.6f;
+    float scale = 0.5f;
     auto holder = CCNode::create();
     holder->setContentSize({120.f, 74.f});
     for (int i = 0; i < 4; i++) {
@@ -414,7 +450,7 @@ void Hub::addFriend(CCSize size) {
     menu->setPosition({0, 0});
     m_mainLayer->addChild(menu, 5);   // not in m_root: the tabs rebuild m_root
     auto btn = CCMenuItemSpriteExtra::create(holder, this, menu_selector(Hub::onFriend));
-    btn->setPosition({size.width - 62.f, 4.f + 74.f * scale / 2});
+    btn->setPosition({size.width - 58.f, 3.f + 74.f * scale / 2});
     menu->addChild(btn);
 
     m_sleepy = isNight();
@@ -523,27 +559,32 @@ void Hub::buildOverview(CCNode* root, CCSize area) {
     }
     float mx = 220.f, mw = area.width - mx - 4.f;
     heading(root, "Death mountain", 0.34f, {mx, colTop}, {0.f, 0.5f}, {255, 120, 130});
+
+    auto sky = spr("ludo_mtn_card.png"_spr);
+    sky->setScaleX(mw / 196.f);
+    sky->setPosition({mx + mw / 2, 2.f + 35.f});
+    root->addChild(sky);
+
     if (!worst) {
-        makeLabel(root, "Play a level and the places you die show up here.", "chatFont.fnt", 0.7f, {mx + mw / 2, colTop - 44.f});
+        makeLabel(root, "Play a level and the places", "chatFont.fnt", 0.65f, {mx + mw / 2, 50.f})->setColor({255, 236, 230});
+        makeLabel(root, "you die show up here.", "chatFont.fnt", 0.65f, {mx + mw / 2, 38.f})->setColor({255, 236, 230});
         return;
     }
     std::string wn = worst->name.empty() ? fmt::format("Level {}", worst->id) : worst->name;
-    makeLabel(root, shorten(wn, 24), "chatFont.fnt", 0.7f, {mx + mw, colTop}, {1.f, 0.5f})->setOpacity(200);
-
-    auto frame = card({mw, 80.f}, 190);
-    frame->setPosition({mx + mw / 2, 2.f + 40.f});
-    root->addChild(frame);
-
+    makeLabel(root, shorten(wn, 18), "chatFont.fnt", 0.65f, {mx, colTop - 13.f}, {0.f, 0.5f})->setOpacity(200);
     int peakIdx = 0;
     for (int i = 1; i < 20; i++) if (worst->hist[i] > worst->hist[peakIdx]) peakIdx = i;
-    makeLabel(root, fmt::format("most deaths at {}-{}%", peakIdx * 5, peakIdx * 5 + 5), "chatFont.fnt", 0.65f, {mx + mw / 2, 70.f});
+    makeLabel(root, fmt::format("most deaths at {}-{}%", peakIdx * 5, peakIdx * 5 + 5), "chatFont.fnt", 0.65f, {mx + mw, colTop - 13.f}, {1.f, 0.5f})
+        ->setColor({255, 150, 156});
 
     auto graph = CCNode::create();
-    graph->setPosition({mx + 8.f, 17.f});
+    graph->setPosition({mx, 2.f});
+    graph->setScaleX(mw / 196.f);
     root->addChild(graph);
-    drawMountain(graph, worst->hist, {mw - 16.f, 40.f});
-    makeLabel(root, "0%", "chatFont.fnt", 0.55f, {mx + 8.f, 10.f}, {0.f, 0.5f})->setOpacity(150);
-    makeLabel(root, "100%", "chatFont.fnt", 0.55f, {mx + mw - 8.f, 10.f}, {1.f, 0.5f})->setOpacity(150);
+    drawMountain(graph, worst->hist, 196.f, 14.f, 40.f);
+    makeLabel(root, "0%", "chatFont.fnt", 0.5f, {mx + 6.f, 9.f}, {0.f, 0.5f})->setOpacity(150);
+    makeLabel(root, "50%", "chatFont.fnt", 0.5f, {mx + mw / 2, 9.f})->setOpacity(150);
+    makeLabel(root, "100%", "chatFont.fnt", 0.5f, {mx + mw - 6.f, 9.f}, {1.f, 0.5f})->setOpacity(150);
 }
 
 // ---------------------------------------------------------------- Levels

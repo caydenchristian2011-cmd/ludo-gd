@@ -63,6 +63,23 @@ def smoke(w, h, seed):
     return f'<svg width="{w}" height="{h}" style="position:absolute;left:0;top:0;filter:blur(18px)">{"".join(blobs)}</svg>'
 
 
+def ridge_path(w, base, amp, seed, rough=5, step=4):
+    """A jagged ink-wash ridge line along the bottom, by midpoint displacement."""
+    r = random.Random(seed)
+    pts = [base - amp * .3, base - amp * .3]
+    n = 2
+    for lvl in range(rough):
+        new = []
+        for i in range(len(pts) - 1):
+            new.append(pts[i])
+            new.append((pts[i] + pts[i + 1]) / 2 + r.uniform(-1, 1) * amp / (1.9 ** lvl))
+        new.append(pts[-1])
+        pts = new
+    xs = [w * i / (len(pts) - 1) for i in range(len(pts))]
+    d = 'M0 %d ' % (base + 40) + ' '.join(f'L{x:.1f} {min(y, base + 20):.1f}' for x, y in zip(xs, pts)) + f' L{w} {base + 40} Z'
+    return d
+
+
 def frame(radius, inset_red=3.0):
     return f"""<div style="position:absolute;inset:0;border-radius:{radius}px;box-shadow:inset 0 0 0 1px rgba(236,228,222,.20), inset 0 0 28px rgba(0,0,0,.55)"></div>
 <div style="position:absolute;inset:{inset_red}px;border-radius:{radius - inset_red}px;border:1.1px solid rgba(255,71,87,.5)"></div>
@@ -96,6 +113,11 @@ def hub_bg():
 <div style="position:absolute;inset:0;border-radius:18px;overflow:hidden;
  background:radial-gradient(120% 95% at 72% 6%, #2a1a22 0%, #150f16 46%, #0a070c 100%)">
  {smoke(w, h, 11)}
+ <svg width="{w}" height="{h}" style="position:absolute;left:0;top:0">
+  <path d="{ridge_path(w, h - 58, 34, 3)}" fill="rgba(236,228,222,.030)"/>
+  <path d="{ridge_path(w, h - 40, 26, 9)}" fill="rgba(236,228,222,.045)"/>
+  <path d="{ridge_path(w, h - 24, 18, 21)}" fill="rgba(20,13,19,.78)"/>
+ </svg>
  <svg width="{w}" height="{h}" style="position:absolute;left:0;top:0">{splatter(5, w, h, 150)}</svg>
  <div style="position:absolute;inset:0;background:linear-gradient(0deg,rgba(7,5,9,.55),transparent 38%)"></div>
  {grain(w, h, .085)}
@@ -135,6 +157,30 @@ def sun():
 BRANCH_W = 190
 BRANCH_H = 118
 BRANCH_K = BRANCH_W / 760.0          # svg units -> points
+
+
+MTN_W, MTN_H = 196, 70
+
+
+def mountain_card():
+    """Dusk sky behind the death mountain: sun low on the horizon, far ridges, mist. The
+    mod draws your deaths on top as the near ridge."""
+    w, h = MTN_W, MTN_H
+    far1 = ridge_path(w, 42, 15, 5, rough=5)
+    far2 = ridge_path(w, 34, 11, 17, rough=5)
+    body = f"""<div style="position:absolute;inset:0;border-radius:10px;overflow:hidden;
+ background:linear-gradient(180deg,#24121c 0%,#4a1e2c 38%,#93313f 68%,#d9524f 88%,#f08a6a 100%)">
+ <div style="position:absolute;left:118px;top:12px;width:34px;height:34px;border-radius:50%;
+  background:radial-gradient(circle at 40% 34%,#fff0d8 0%,#ffc0a0 45%,#ff7a6a 100%);box-shadow:0 0 18px 8px rgba(255,150,120,.45)"></div>
+ <svg width="{w}" height="{h}" style="position:absolute;left:0;top:0">
+  <path d="{far1}" fill="#3c1a2b"/>
+  <path d="{far2}" fill="#26101c"/>
+ </svg>
+ <div style="position:absolute;left:0;right:0;top:34px;height:16px;background:linear-gradient(180deg,transparent,rgba(255,220,210,.14),transparent);filter:blur(3px)"></div>
+ <div style="position:absolute;left:0;right:0;bottom:0;height:14px;background:#0b080d"></div>
+</div>
+<div style="position:absolute;inset:0;border-radius:10px;box-shadow:inset 0 0 0 .8px rgba(236,228,222,.16)"></div>"""
+    return page(body, w=w, h=h), (w, h)
 
 
 def branch_parts():
@@ -356,6 +402,7 @@ def make_all():
         'ludo_tile': tile,
         'ludo_sun': sun,
         'ludo_branch': branch,
+        'ludo_mtn_card': mountain_card,
         'ludo_bud_lit': lambda: bud('lit'),
         'ludo_bud_dim': lambda: bud('dim'),
         'ludo_bud_glow': lambda: bud('glow'),

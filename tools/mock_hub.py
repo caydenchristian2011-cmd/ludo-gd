@@ -21,35 +21,34 @@ def text(s, x, y, size, color='#ece4de', anchor='l', font='Fraunces', weight=700
     return f'<div style="position:absolute;left:{x}px;top:{H - y}px;transform:translate({tx},-50%);font:{weight} {size}px {font},serif;color:{color};white-space:nowrap;opacity:{opacity}">{s}</div>'
 
 parts = [img('hub_bg', 230, 145)]
-parts.append(img('sun', 92, H - 86, extra='opacity:.47'))
+parts.append(img('sun', 56, H - 29, w=80, h=80, extra='opacity:.75'))
 import re
 buds = [tuple(map(float, m)) for m in re.findall(r'\{([\d.]+)f, ([\d.]+)f, ([\d.]+)f, ([\d.]+)\.f\}', open(os.path.join(R, '..', 'src', 'BranchData.hpp')).read())]
 BW, BH = 190, 118
-parts.append(img('branch', 456, H - 4, anchor=(1, 1), extra='transform:scaleX(-1);transform-origin:center'))
+K = .75
+parts.append(img('branch', 456, H - 4, w=190 * K, h=118 * K, anchor=(1, 1), extra='transform:scaleX(-1);transform-origin:center'))
 vis = [b for b in buds if b[1] < 68]
 lit = round(float(os.environ.get('PROGRESS', '0.5')) * len(vis))
 for n, (bx, by, bs, br) in enumerate(vis):
     fade = min(max(1 - (by - 38) / 30, 0), 1)
-    gx, gy = 456 - bx, H - 4 - by      # css-space centre of the bud
-    k = bs / 20
+    gx, gy = 456 - bx * K, H - 4 - by * K
+    k = bs / 20 * K
     on = n < lit
     def put(name, size, extra):
         return f'<img src="file://{R}/ludo_{name}.png" style="position:absolute;left:{gx - size / 2}px;top:{H - gy - size / 2 - 0}px;width:{size}px;height:{size}px;{extra}">'
     if on:
         parts.append(put('bud_glow', 44 * k * 1.9, f'opacity:{.6 * fade}'))
     parts.append(put('bud_lit' if on else 'bud_dim', 44 * k, f'opacity:{(1 if on else .8) * fade};transform:rotate({-br}deg)'))
-for i, (px, py) in enumerate([(70, 250), (150, 200), (230, 150), (310, 230), (390, 120), (420, 190), (40, 120)]):
-    parts.append(img(f'petal_{i % 3}', px, py, extra='opacity:.7'))
 parts.append(img('ic_x', 14, H - 14))
-parts.append(text('Ludo', 230, H - 20, 26, anchor='c'))
-parts.append(img('brush', 230, H - 35))
-x = 230 - 102
+parts.append(text('Ludo', 150, H - 22, 26, anchor='c'))
+parts.append(img('brush', 150, H - 37, w=126, h=8.1))
+x = 82
 for name, label in (('Overview', 'overview'), ('Levels', 'levels'), ('Collections', 'collections')):
     on = tab == label
-    parts.append(img('pill_on' if on else 'pill_off', x, H - 54, w=98, h=26))
-    parts.append(text(name, x, H - 54, 11, '#fff' if on else '#ece4de', 'c', 'sans-serif', 700))
-    x += 102
-ax, ay, aw, ah = 20, 46, 420, 168
+    parts.append(img('pill_on' if on else 'pill_off', x, H - 62, w=92, h=26))
+    parts.append(text(name, x, H - 62, 11, '#fff' if on else '#ece4de', 'c', 'sans-serif', 700))
+    x += 96
+ax, ay, aw, ah = 20, 46, 420, 162
 def cx(v): return ax + v
 def cy(v): return ay + v
 if tab == 'overview':
@@ -68,20 +67,26 @@ if tab == 'overview':
         parts.append(text(t, cx(196), yy, 9, anchor='r', font='sans-serif', weight=400, opacity=.8))
     mx, mw = 220, aw - 220 - 4
     parts.append(text('Death mountain', cx(mx), cy(top), 12, '#ff7882'))
-    parts.append(text('Bloodbath', cx(mx + mw), cy(top), 9, anchor='r', font='sans-serif', weight=400, opacity=.8))
-    parts.append(img('tile', cx(mx + mw / 2), cy(42), w=mw, h=80, extra='opacity:.75'))
-    parts.append(text('most deaths at 40-45%', cx(mx + mw / 2), cy(70), 8.5, anchor='c', font='sans-serif', weight=400))
+    parts.append(text('Bloodbath', cx(mx), cy(top - 13), 8.3, font='sans-serif', weight=400, opacity=.8))
+    parts.append(text('most deaths at 40-45%', cx(mx + mw), cy(top - 13), 8.3, '#ff969c', 'r', 'sans-serif', 400))
+    parts.append(img('mtn_card', cx(mx + mw / 2), cy(37), w=196, h=70))
     hist = [1, 2, 4, 3, 5, 9, 6, 4, 14, 22, 12, 6, 3, 4, 8, 5, 2, 3, 1, 1]
-    gw, gh = mw - 16, 40
-    pts = []
-    for i in range(81):
-        pos = min(max(i / 80 * 20 - .5, 0), 19); a = int(pos); b = min(a + 1, 19); f = pos - a; f = f * f * (3 - 2 * f)
-        v = hist[a] * (1 - f) + hist[b] * f
-        pts.append((gw * i / 80, gh - v / max(hist) * gh))
-    poly = ' '.join(f'{px:.1f},{py:.1f}' for px, py in pts)
-    parts.append(f'<svg style="position:absolute;left:{cx(mx + 8)}px;top:{H - cy(17) - gh}px" width="{gw}" height="{gh + 2}"><polygon points="0,{gh} {poly} {gw},{gh}" fill="rgba(236,228,222,.16)"/><polyline points="{poly}" fill="none" stroke="#ff4757" stroke-width="1.2"/></svg>')
-    parts.append(text('0%', cx(mx + 8), cy(10), 7, font='sans-serif', weight=400, opacity=.6))
-    parts.append(text('100%', cx(mx + mw - 8), cy(10), 7, anchor='r', font='sans-serif', weight=400, opacity=.6))
+    N = 80; base = 14; maxh = 40; pk = max(hist)
+    hs = []
+    for i in range(N + 1):
+        pos = min(max(i / N * 20 - .5, 0), 19); a_ = int(pos); b_ = min(a_ + 1, 19); f = pos - a_; f = f * f * (3 - 2 * f)
+        hs.append(base + 3 + (hist[a_] * (1 - f) + hist[b_] * f) / pk * maxh)
+    far = [base + 3 + (hs[min(N, i + 14)] - base - 3) * .55 for i in range(N + 1)]
+    def poly(arr): return ' '.join(f'{1 + 194 * i / N:.1f},{70 - v:.1f}' for i, v in enumerate(arr))
+    top_i = max(range(N + 1), key=lambda i: hs[i]); fx = 1 + 194 * top_i / N; fy = 70 - hs[top_i]
+    parts.append(f'<svg style="position:absolute;left:{cx(mx)}px;top:{H - cy(2) - 70}px" width="196" height="70">'
+                 f'<polygon points="1,{70 - base + 1} {poly(far)} 195,{70 - base + 1}" fill="#2b121c" stroke="rgba(158,64,84,.75)" stroke-width=".5"/>'
+                 f'<polygon points="1,{70 - base + 1} {poly(hs)} 195,{70 - base + 1}" fill="#0b080d" stroke="#ff4757" stroke-width=".8"/>'
+                 f'<line x1="{fx}" y1="{fy}" x2="{fx}" y2="{fy - 9}" stroke="#ffe5e0" stroke-width=".5"/>'
+                 f'<polygon points="{fx},{fy - 9} {fx + 7},{fy - 6.5} {fx},{fy - 4}" fill="#ff4757"/></svg>')
+    parts.append(text('0%', cx(mx + 6), cy(9), 6.5, font='sans-serif', weight=400, opacity=.6))
+    parts.append(text('50%', cx(mx + mw / 2), cy(9), 6.5, anchor='c', font='sans-serif', weight=400, opacity=.6))
+    parts.append(text('100%', cx(mx + mw - 6), cy(9), 6.5, anchor='r', font='sans-serif', weight=400, opacity=.6))
 elif tab == 'levels':
     parts.append(img('check_off', cx(14), cy(ah - 12), w=18.7, h=18.7))
     parts.append(text('Favorites only', cx(30), cy(ah - 12), 9.5, font='sans-serif', weight=400))
@@ -113,7 +118,7 @@ else:
         parts.append(img('ic_x', cx(aw - 36), yc, w=20.8, h=20.8))
 parts.append(text('Ludo v0.2.0', 24, 20, 8, font='sans-serif', weight=400, opacity=.45))
 fr = os.environ.get('FRIEND', 'samurai')
-parts.append(img(f'{fr}_neutral', 460 - 62, 4 + 74 * .6 / 2, w=72, h=44.4))
+parts.append(img(f'{fr}_neutral', 460 - 58, 3 + 74 * .5 / 2, w=60, h=37))
 html = f"""<!doctype html><html><head><meta charset=utf-8><style>
 @font-face{{font-family:Fraunces;src:url(file://{R}/Fraunces.ttf);font-weight:700}}
 html,body{{margin:0;background:#3a3a44}}#h{{position:relative;width:460px;height:{H}px;overflow:hidden;margin:20px}}</style></head>
