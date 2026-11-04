@@ -20,6 +20,7 @@ class $modify(LudoPlayLayer, PlayLayer) {
         auto* s = ludo::Store::get().find(f->levelID);
         if (!s) return;
         s->seconds += f->pending;
+        ludo::Store::get().logTime(f->levelID, f->pending);
         f->pending = 0;
         s->best = std::max(s->best, static_cast<int>(m_level->m_normalPercent.value()));
         ludo::Store::get().dirty();
@@ -34,6 +35,8 @@ class $modify(LudoPlayLayer, PlayLayer) {
             m_fields->levelID = id;
             auto& s = ludo::Store::get().level(id, static_cast<std::string>(level->m_levelName), static_cast<std::string>(level->m_creatorName));
             s.last = static_cast<long long>(std::time(nullptr));
+            s.song = level->m_songID;
+            s.track = level->m_audioTrack;
             ludo::Store::get().dirty();
         }
         return true;
@@ -54,6 +57,7 @@ class $modify(LudoPlayLayer, PlayLayer) {
         if (!m_fields->levelID) return;
         if (auto* s = ludo::Store::get().find(m_fields->levelID)) {
             s->attempts++;
+            ludo::Store::get().logAttempt(m_fields->levelID);
             ludo::Store::get().dirty();
         }
     }
@@ -69,6 +73,7 @@ class $modify(LudoPlayLayer, PlayLayer) {
             s->deaths++;
             int slice = static_cast<int>(this->getCurrentPercent() / 5.f);
             s->hist[std::clamp(slice, 0, 19)]++;
+            ludo::Store::get().logDeath(m_fields->levelID, slice);
             ludo::Store::get().dirty();
         }
     }
@@ -79,6 +84,7 @@ class $modify(LudoPlayLayer, PlayLayer) {
         if (auto* s = ludo::Store::get().find(m_fields->levelID)) {
             s->completions++;
             s->best = 100;
+            ludo::Store::get().logComplete(m_fields->levelID);
             ludo::Store::get().dirty();
         }
         flushTime();

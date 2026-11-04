@@ -10,6 +10,7 @@
 - Settings: choose the friend (or turn it off) and turn the motion off for a still hub.
 - Deaths are now recorded by where in the level they happen.
 
+- Ludo now keeps a daily log (time, attempts, deaths, completions, and where you die, per level per day) and remembers each level's song. This is the groundwork for the monthly and yearly Wrapped recaps; the log starts from the day you update.
 # v0.1.0
 
 - Tracks play time, attempts, deaths, completions and best percent for every online level you play.

@@ -23,9 +23,9 @@ static std::string esc(std::string const& s) {
     return out + "\"";
 }
 
-static std::string histText(LevelStat const& l) {
+static std::string histText(std::array<int, 20> const& h) {
     std::string out;
-    for (size_t i = 0; i < l.hist.size(); i++) out += (i ? "," : "") + std::to_string(l.hist[i]);
+    for (size_t i = 0; i < h.size(); i++) out += (i ? "," : "") + std::to_string(h[i]);
     return out;
 }
 
@@ -70,6 +70,73 @@ std::vector<LevelStat*> Store::byTime() {
     for (auto& l : m_levels) out.push_back(&l);
     std::sort(out.begin(), out.end(), [](LevelStat* a, LevelStat* b) { return a->seconds > b->seconds; });
     return out;
+}
+
+static std::string localDate(std::tm const& t) {
+    return fmt::format("{:04}-{:02}-{:02}", t.tm_year + 1900, t.tm_mon + 1, t.tm_mday);
+}
+
+DayStat& Store::today() {
+    std::time_t now = std::time(nullptr);
+    std::tm t{};
+#ifdef _WIN32
+    localtime_s(&t, &now);
+#else
+    localtime_r(&now, &t);
+#endif
+    std::string date = localDate(t);
+    if (m_days.empty() || m_days.back().date != date) {
+        DayStat d;
+        d.date = date;
+        m_days.push_back(std::move(d));
+    }
+    return m_days.back();
+}
+
+DayLevel& Store::todayLevel(int id) {
+    auto& d = today();
+    for (auto& l : d.levels) if (l.id == id) return l;
+    DayLevel l;
+    l.id = id;
+    d.levels.push_back(std::move(l));
+    return d.levels.back();
+}
+
+void Store::logTime(int id, double seconds) {
+    if (seconds <= 0) return;
+    auto& d = today();
+    d.seconds += seconds;
+    // time played late at night (feeds the "Night Owl" title)
+    std::time_t now = std::time(nullptr);
+    std::tm t{};
+#ifdef _WIN32
+    localtime_s(&t, &now);
+#else
+    localtime_r(&now, &t);
+#endif
+    if (t.tm_hour >= 22 || t.tm_hour < 5) d.night += seconds;
+    todayLevel(id).seconds += seconds;
+    m_dirty = true;
+}
+
+void Store::logAttempt(int id) {
+    (void)id;
+    today().attempts++;
+    m_dirty = true;
+}
+
+void Store::logDeath(int id, int slice) {
+    today().deaths++;
+    auto& l = todayLevel(id);
+    l.deaths++;
+    l.hist[static_cast<size_t>(std::clamp(slice, 0, 19))]++;
+    m_dirty = true;
+}
+
+void Store::logComplete(int id) {
+    today().completions++;
+    todayLevel(id).completions++;
+    m_dirty = true;
 }
 
 double Store::totalSeconds() const { double t = 0; for (auto& l : m_levels) t += l.seconds; return t; }
@@ -134,14 +201,14 @@ void Store::saveIfDirty() {
 }
 
 void Store::save() {
-    std::string out = "{\"v\":1,\"levels\":[";
+    std::string out = "{\"v\":2,\"levels\":[";
     bool first = true;
     for (auto& l : m_levels) {
         if (!first) out += ",";
         first = false;
         out += fmt::format(
-            "{{\"id\":{},\"name\":{},\"creator\":{},\"attempts\":{},\"deaths\":{},\"completions\":{},\"best\":{},\"seconds\":{:.2f},\"last\":{},\"favorite\":{},\"hist\":[{}]}}",
-            l.id, esc(l.name), esc(l.creator), l.attempts, l.deaths, l.completions, l.best, l.seconds, l.last, l.favorite ? "true" : "false", histText(l));
+            "{{\"id\":{},\"name\":{},\"creator\":{},\"attempts\":{},\"deaths\":{},\"completions\":{},\"best\":{},\"seconds\":{:.2f},\"last\":{},\"favorite\":{},\"hist\":[{}],\"song\":{},\"track\":{}}}",
+            l.id, esc(l.name), esc(l.creator), l.attempts, l.deaths, l.completions, l.best, l.seconds, l.last, l.favorite ? "true" : "false", histText(l.hist), l.song, l.track);
     }
     out += "],\"collections\":[";
     first = true;
@@ -150,6 +217,22 @@ void Store::save() {
         first = false;
         out += "{\"name\":" + esc(c.name) + ",\"ids\":[";
         for (size_t i = 0; i < c.ids.size(); i++) out += (i ? "," : "") + std::to_string(c.ids[i]);
+        out += "]}";
+    }
+    out += "],\"days\":[";
+    first = true;
+    for (auto& d : m_days) {
+        if (!first) out += ",";
+        first = false;
+        out += fmt::format("{{\"date\":{},\"seconds\":{:.1f},\"night\":{:.1f},\"attempts\":{},\"deaths\":{},\"completions\":{},\"levels\":[",
+            esc(d.date), d.seconds, d.night, d.attempts, d.deaths, d.completions);
+        bool f2 = true;
+        for (auto& l : d.levels) {
+            if (!f2) out += ",";
+            f2 = false;
+            out += fmt::format("{{\"id\":{},\"seconds\":{:.1f},\"deaths\":{},\"completions\":{},\"hist\":[{}]}}",
+                l.id, l.seconds, l.deaths, l.completions, histText(l.hist));
+        }
         out += "]}";
     }
     out += "]}";
@@ -187,7 +270,33 @@ void Store::load() {
             if (slot >= l.hist.size()) break;
             l.hist[slot++] = static_cast<int>(h.asInt().unwrapOr(0));
         }
+        l.song = static_cast<int>(item["song"].asInt().unwrapOr(0));
+        l.track = static_cast<int>(item["track"].asInt().unwrapOr(0));
         m_levels.push_back(std::move(l));
+    }
+    for (auto const& item : root["days"]) {
+        DayStat d;
+        d.date = item["date"].asString().unwrapOr("");
+        if (d.date.size() != 10) continue;
+        d.seconds = item["seconds"].asDouble().unwrapOr(0.0);
+        d.night = item["night"].asDouble().unwrapOr(0.0);
+        d.attempts = static_cast<int>(item["attempts"].asInt().unwrapOr(0));
+        d.deaths = static_cast<int>(item["deaths"].asInt().unwrapOr(0));
+        d.completions = static_cast<int>(item["completions"].asInt().unwrapOr(0));
+        for (auto const& li : item["levels"]) {
+            DayLevel l;
+            l.id = static_cast<int>(li["id"].asInt().unwrapOr(0));
+            l.seconds = li["seconds"].asDouble().unwrapOr(0.0);
+            l.deaths = static_cast<int>(li["deaths"].asInt().unwrapOr(0));
+            l.completions = static_cast<int>(li["completions"].asInt().unwrapOr(0));
+            size_t slot = 0;
+            for (auto const& h : li["hist"]) {
+                if (slot >= l.hist.size()) break;
+                l.hist[slot++] = static_cast<int>(h.asInt().unwrapOr(0));
+            }
+            d.levels.push_back(std::move(l));
+        }
+        m_days.push_back(std::move(d));
     }
     for (auto const& item : root["collections"]) {
         Collection c;

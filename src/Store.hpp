@@ -18,6 +18,27 @@ struct LevelStat {
     long long last = 0;      // unix seconds, last time it was played
     bool favorite = false;
     std::array<int, 20> hist{};   // deaths per 5% slice of the level
+    int song = 0;            // custom song id, 0 if none
+    int track = 0;           // official audio track, used when song is 0
+};
+
+// What happened in one level on one day (feeds the monthly and yearly recaps).
+struct DayLevel {
+    int id = 0;
+    double seconds = 0;
+    int deaths = 0;
+    int completions = 0;
+    std::array<int, 20> hist{};
+};
+
+struct DayStat {
+    std::string date;        // "YYYY-MM-DD", local time
+    double seconds = 0;
+    double night = 0;        // seconds played between 22:00 and 05:00
+    int attempts = 0;
+    int deaths = 0;
+    int completions = 0;
+    std::vector<DayLevel> levels;
 };
 
 struct Collection {
@@ -36,6 +57,13 @@ public:
     std::vector<LevelStat*> byTime();
 
     std::vector<Collection>& collections() { return m_collections; }
+
+    // daily log for Wrapped
+    void logTime(int id, double seconds);
+    void logAttempt(int id);
+    void logDeath(int id, int slice);
+    void logComplete(int id);
+    std::vector<DayStat> const& days() const { return m_days; }
 
     double totalSeconds() const;
     int totalAttempts() const;
@@ -60,9 +88,12 @@ private:
     Store();
     void load();
     void save();
+    DayStat& today();
+    DayLevel& todayLevel(int id);
 
     std::vector<LevelStat> m_levels;
     std::vector<Collection> m_collections;
+    std::vector<DayStat> m_days;
     bool m_dirty = false;
 };
 
