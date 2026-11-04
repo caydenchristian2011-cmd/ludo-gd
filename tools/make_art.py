@@ -417,6 +417,103 @@ def friend(kind, pose):
     return page(body, w=w, h=h), (w, h)
 
 
+# ---------------------------------------------------------------- Wrapped
+
+WRAP_PALETTES = [
+    ('#7a1230', '#251020', '#ff5d73'),   # intro, crimson
+    ('#1f3a63', '#14101f', '#6fa8ff'),   # time, dusk blue
+    ('#c23a55', '#2a1020', '#ffb0bd'),   # top level, rose
+    ('#3a1a4a', '#120d1c', '#c58bff'),   # death spot, violet
+    ('#0f5a4a', '#10141c', '#6fe0b8'),   # best day, jade
+    ('#7a1230', '#251020', '#ffd36e'),   # wrap-up, crimson and gold
+]
+
+
+def wrap_bg(i):
+    """A story-screen background. Drawn at half size and shown at 2x in game (it is all soft washes)."""
+    w, h = 220, 145
+    c1, c2, acc = WRAP_PALETTES[i]
+    r = random.Random(40 + i)
+    blobs = ''.join(
+        f'<ellipse cx="{r.uniform(0, w):.0f}" cy="{r.uniform(0, h * .8):.0f}" rx="{r.uniform(30, 70):.0f}" ry="{r.uniform(18, 40):.0f}" fill="{acc}" opacity="{r.uniform(.05, .12):.3f}"/>'
+        for _ in range(5))
+    body = f"""
+<div style="position:absolute;inset:0;border-radius:9px;overflow:hidden;background:linear-gradient(135deg,{c1} 0%,{c2} 72%)">
+ <svg width="{w}" height="{h}" style="position:absolute;left:0;top:0;filter:blur(9px)">{blobs}</svg>
+ <div style="position:absolute;left:-30px;top:-40px;width:150px;height:150px;border-radius:50%;background:radial-gradient(circle,{acc}55 0%,transparent 68%)"></div>
+ <svg width="{w}" height="{h}" style="position:absolute;left:0;top:0">
+  <path d="{ridge_path(w, h - 30, 18, 70 + i)}" fill="rgba(0,0,0,.16)"/>
+  <path d="{ridge_path(w, h - 16, 12, 90 + i)}" fill="rgba(0,0,0,.26)"/>
+  {splatter(60 + i, w, h, 55)}
+ </svg>
+ <div style="position:absolute;inset:0;background:radial-gradient(120% 100% at 50% 40%,transparent 55%,rgba(0,0,0,.4) 100%)"></div>
+ {grain(w, h, .07, 5 + i)}
+</div>
+<div style="position:absolute;inset:0;border-radius:9px;box-shadow:inset 0 0 0 .6px rgba(255,255,255,.14)"></div>"""
+    return page(body, w=w, h=h), (w, h)
+
+
+GOLD = '#f1d58a'
+
+
+def title_glyph(kind):
+    if kind == 'owl':        # crescent moon and stars
+        return f"""<path d="M30 12 A13 13 0 1 0 36 33 A10.5 10.5 0 1 1 30 12Z" fill="{GOLD}"/>
+<path d="M33 14 l1.2 2.8 2.8 1.2 -2.8 1.2 -1.2 2.8 -1.2 -2.8 -2.8 -1.2 2.8 -1.2z M38 25 l.8 1.8 1.8 .8 -1.8 .8 -.8 1.8 -.8 -1.8 -1.8 -.8 1.8 -.8z" fill="{CHALK}"/>"""
+    if kind == 'spike':      # spikes with a red glow
+        return f"""<circle cx="24" cy="30" r="13" fill="rgba(255,71,87,.28)"/>
+<path d="M9 36 L15 15 L21 36 L27 12 L33 36 L39 18 L40 36Z" fill="{CHALK}"/>
+<path d="M9 36 L15 15 L21 36 L27 12 L33 36 L39 18 L40 36Z" fill="none" stroke="{RED}" stroke-width="1.4" stroke-linejoin="round"/>
+<path d="M8 37.5 H41" stroke="{RED}" stroke-width="2" stroke-linecap="round"/>"""
+    if kind == 'comeback':   # rising sun over a horizon, arrow up
+        return f"""<path d="M12 31 A12 12 0 0 1 36 31Z" fill="{RED}"/>
+<path d="M8 31.5 H40" stroke="{CHALK}" stroke-width="2" stroke-linecap="round"/>
+<path d="M24 25 V10 M18.5 15.5 L24 10 L29.5 15.5" fill="none" stroke="{GOLD}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M13 37 H35" stroke="rgba(236,228,222,.45)" stroke-width="1.4" stroke-linecap="round"/>"""
+    if kind == 'marathon':   # finish flag
+        cells = ''.join(
+            f'<rect x="{17 + c * 6}" y="{12 + rr * 6}" width="6" height="6" fill="{CHALK if (c + rr) % 2 == 0 else "#1a1219"}"/>'
+            for c in range(4) for rr in range(3))
+        return f"""<path d="M15 9 V39" stroke="{GOLD}" stroke-width="2.4" stroke-linecap="round"/>{cells}
+<rect x="17" y="12" width="24" height="18" fill="none" stroke="rgba(236,228,222,.55)" stroke-width=".8"/>"""
+    if kind == 'window':     # shoji window
+        return f"""<rect x="10" y="10" width="28" height="28" rx="2" fill="rgba(236,228,222,.12)" stroke="{CHALK}" stroke-width="2"/>
+<path d="M24 10 V38 M10 24 H38 M17 10 V38 M31 10 V38 M10 17 H38 M10 31 H38" stroke="{CHALK}" stroke-width=".9" opacity=".75"/>
+<circle cx="31" cy="31" r="3.2" fill="{RED}"/>"""
+    # wonder: one big bright circle
+    return f"""<circle cx="24" cy="24" r="15" fill="rgba(255,71,87,.22)"/><circle cx="24" cy="24" r="10" fill="{RED}"/>
+<circle cx="24" cy="24" r="10" fill="none" stroke="{GOLD}" stroke-width="1.6"/><circle cx="21" cy="21" r="3" fill="rgba(255,255,255,.4)"/>"""
+
+
+def title_badge(kind):
+    s = 48
+    glyph = f'<svg width="{s}" height="{s}" viewBox="0 0 48 48" style="position:absolute;left:0;top:0">{title_glyph(kind)}</svg>'
+    return disc(s, glyph, ring=GOLD)
+
+
+def wrap_icon():
+    """A little scroll tied with a red ribbon: the Wrapped pop-up and tab."""
+    s = 40
+    body = f"""<svg width="{s}" height="{s}" viewBox="0 0 40 40"><defs>
+<linearGradient id="p" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#eadfc4"/><stop offset="1" stop-color="#cdb98f"/></linearGradient>
+<linearGradient id="w" x1="0" x2="1"><stop offset="0" stop-color="#3a2a22"/><stop offset=".5" stop-color="#8a6a46"/><stop offset="1" stop-color="#2a1d18"/></linearGradient></defs>
+<g transform="rotate(-18 20 20)">
+<rect x="5" y="14" width="30" height="12" fill="url(#p)"/>
+<rect x="3" y="11" width="6" height="18" rx="3" fill="url(#w)"/><rect x="31" y="11" width="6" height="18" rx="3" fill="url(#w)"/>
+<rect x="2.2" y="12.5" width="2.4" height="15" rx="1.2" fill="#d9b25a"/><rect x="35.4" y="12.5" width="2.4" height="15" rx="1.2" fill="#d9b25a"/>
+<rect x="17" y="12" width="6" height="16" fill="#e22d42"/><rect x="17" y="12" width="2" height="16" fill="rgba(255,255,255,.25)"/>
+<path d="M20 20 C13 11 10 17 20 20 C30 17 27 11 20 20Z" fill="#ff4757" stroke="#9b1228" stroke-width=".7"/><circle cx="20" cy="20" r="2.2" fill="#b9182c"/>
+</g></svg>"""
+    return page(body, w=s, h=s), (s, s)
+
+
+def spark():
+    s = 16
+    body = f"""<svg width="16" height="16" viewBox="0 0 16 16"><defs><radialGradient id="g"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="{GOLD}"/></radialGradient></defs>
+<path d="M8 0 C8.7 5.2 10.8 7.3 16 8 C10.8 8.7 8.7 10.8 8 16 C7.3 10.8 5.2 8.7 0 8 C5.2 7.3 7.3 5.2 8 0Z" fill="url(#g)"/></svg>"""
+    return page(body, w=s, h=s), (s, s)
+
+
 def make_all():
     jobs = {
         'ludo_hub_bg': hub_bg,
@@ -448,7 +545,13 @@ def make_all():
         'ludo_bar_track': lambda: bar(False),
         'ludo_bar_fill': lambda: bar(True),
         'ludo_brush': brush_line,
+        'ludo_wrap_icon': wrap_icon,
+        'ludo_spark': spark,
     }
+    for i in range(len(WRAP_PALETTES)):
+        jobs[f'ludo_wrap_bg_{i}'] = (lambda i=i: wrap_bg(i))
+    for kind in ('owl', 'spike', 'comeback', 'marathon', 'window', 'wonder'):
+        jobs[f'ludo_title_{kind}'] = (lambda k=kind: title_badge(k))
     for i in range(3):
         jobs[f'ludo_petal_{i}'] = (lambda i=i: petal(i))
     for kind in ('samurai', 'octopus'):
