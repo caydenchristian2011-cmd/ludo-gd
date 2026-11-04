@@ -1,0 +1,16 @@
+{
+	"geode": "5.6.0",
+	"gd": {
+		"win": "2.2081"
+	},
+	"id": "caydenchristian2011.ludo",
+	"name": "Ludo",
+	"version": "v0.1.0",
+	"developer": "caydenchristian2011",
+	"description": "Your Geometry Dash stats and level collections in one place.",
+	"repository": "https://github.com/caydenchristian2011-cmd/ludo-gd",
+	"tags": ["utility", "interface"],
+	"dependencies": {
+		"geode.node-ids": ">=v1.23.3"
+	}
+}

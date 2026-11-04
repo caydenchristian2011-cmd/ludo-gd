@@ -1,0 +1,12 @@
+build/
+build-*/
+cmake-build-*/
+.vs/
+.vscode/
+.idea/
+.cache/
+*.geode
+*.o
+*.obj
+*.dll
+*.pdb
