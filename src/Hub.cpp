@@ -98,6 +98,16 @@ static bool ambience() {
     return Mod::get()->getSettingValue<bool>("ambience");
 }
 
+// Dark ink for text written on the paper of an unrolled scroll.
+static constexpr ccColor3B kInk = {43, 27, 32};
+
+// A thin line (dividers on the scroll paper).
+static CCLayerColor* hairline(float w, float x, float y, GLubyte alpha = 70) {
+    auto l = CCLayerColor::create(ccColor4B{43, 27, 32, alpha}, w, 1.f);
+    l->setPosition({x, y});
+    return l;
+}
+
 // A number that counts up from zero when it appears.
 class CountUp : public CCNode {
 public:
@@ -706,23 +716,24 @@ void Hub::onNewCollection(CCObject*) {
             return nullptr;
         }
         bool setup(Hub* h) {
-            if (!Popup::init(290.f, 150.f, "ludo_panel.png"_spr)) return false;
+            if (!Popup::init(290.f, 150.f, "ludo_scroll_page.png"_spr)) return false;
+            if (m_bgSprite) m_bgSprite->setInsets(NineSlice::Insets{16.f, 16.f, 16.f, 16.f});
             hub = h;
             auto sz = m_size;
             this->setCloseButtonSpr(spr("ludo_ic_x.png"_spr));
-            heading(m_mainLayer, "New collection", 0.5f, {sz.width / 2, sz.height - 24.f});
+            heading(m_mainLayer, "New collection", 0.5f, {sz.width / 2, sz.height - 34.f}, {0.5f, 0.5f}, kInk);
             auto brush = spr("ludo_brush.png"_spr, 0.8f);
-            brush->setPosition({sz.width / 2, sz.height - 38.f});
+            brush->setPosition({sz.width / 2, sz.height - 49.f});
             m_mainLayer->addChild(brush);
             input = TextInput::create(220.f, "Name", "bigFont.fnt");
             input->setMaxCharCount(30);
-            input->setPosition({sz.width / 2, sz.height / 2 - 6.f});
+            input->setPosition({sz.width / 2, sz.height / 2 - 8.f});
             m_mainLayer->addChild(input);
             auto menu = CCMenu::create();
             menu->setPosition({0, 0});
             m_mainLayer->addChild(menu);
             auto btn = CCMenuItemSpriteExtra::create(pill("Create", 96.f, true), this, menu_selector(NamePopup::onCreate));
-            btn->setPosition({sz.width / 2, 26.f});
+            btn->setPosition({sz.width / 2, 36.f});
             menu->addChild(btn);
             return true;
         }
@@ -800,8 +811,8 @@ void Hub::buildCollections(CCNode* root, CCSize area) {
 
         double secs = 0;
         for (int id : cols[i].ids) if (auto* l = Store::get().find(id)) secs += l->seconds;
-        heading(row, shorten(cols[i].name, 26), 0.36f, {34.f, 22.f}, {0.f, 0.5f});
-        makeLabel(row, fmt::format("{} levels   {} played", cols[i].ids.size(), formatDuration(secs)), "chatFont.fnt", 0.7f, {34.f, 9.f}, {0.f, 0.5f})
+        heading(row, shorten(cols[i].name, 24), 0.36f, {46.f, 22.f}, {0.f, 0.5f});
+        makeLabel(row, fmt::format("{} levels   {} played", cols[i].ids.size(), formatDuration(secs)), "chatFont.fnt", 0.7f, {46.f, 9.f}, {0.f, 0.5f})
             ->setOpacity(190);
 
         auto m = CCMenu::create();
@@ -809,11 +820,11 @@ void Hub::buildCollections(CCNode* root, CCSize area) {
         row->addChild(m);
         auto view = CCMenuItemSpriteExtra::create(pill("Open", 62.f, true, 24.f), this, menu_selector(Hub::onViewCollection));
         view->setTag(static_cast<int>(i));
-        view->setPosition({W - 82.f, 17.f});
+        view->setPosition({W - 92.f, 17.f});
         m->addChild(view);
         auto delBtn = CCMenuItemSpriteExtra::create(spr("ludo_ic_x.png"_spr, 0.8f), this, menu_selector(Hub::onDeleteCollection));
         delBtn->setTag(static_cast<int>(i));
-        delBtn->setPosition({W - 36.f, 17.f});
+        delBtn->setPosition({W - 44.f, 17.f});
         m->addChild(delBtn);
 
         scroll->m_contentLayer->addChild(row);
@@ -831,61 +842,81 @@ void Hub::buildCollectionDetail(CCNode* root, CCSize area) {
     }
     auto& col = cols[static_cast<size_t>(m_viewing)];
 
+    // The collection is an unrolled scroll: rods top and bottom, paper between. It unrolls when opened.
+    float SW = area.width, SH = area.height + 8.f;
+    auto page = CCNode::create();
+    page->setContentSize({SW, SH});
+    page->setAnchorPoint({0.5f, 1.f});
+    page->setPosition({SW / 2, area.height + 5.f});
+    root->addChild(page);
+
+    auto paper = nine("ludo_scroll_page.png"_spr, {SW, SH}, NineSlice::Insets{16.f, 16.f, 16.f, 16.f});
+    paper->setPosition({SW / 2, SH / 2});
+    page->addChild(paper);
+
+    // header on the paper, clear of the top rod
     auto menu = CCMenu::create();
     menu->setPosition({0, 0});
-    root->addChild(menu);
+    page->addChild(menu);
     auto back = CCMenuItemSpriteExtra::create(spr("ludo_ic_back.png"_spr, 0.9f), this, menu_selector(Hub::onBack));
-    back->setPosition({14.f, area.height - 12.f});
+    back->setPosition({28.f, SH - 30.f});
     menu->addChild(back);
-    heading(root, shorten(col.name, 30), 0.44f, {34.f, area.height - 12.f}, {0.f, 0.5f});
+    heading(page, shorten(col.name, 28), 0.44f, {48.f, SH - 30.f}, {0.f, 0.5f}, kInk);
+    makeLabel(page, fmt::format("{} levels", col.ids.size()), "chatFont.fnt", 0.8f, {SW - 28.f, SH - 30.f}, {1.f, 0.5f})->setColor(kInk);
+    page->addChild(hairline(SW - 56.f, 28.f, SH - 44.f));
 
     if (col.ids.empty()) {
-        makeLabel(root, "Empty. Add levels from a level's page (scroll button).", "chatFont.fnt", 0.8f, {area.width / 2, area.height / 2});
-        return;
-    }
+        heading(page, "Nothing written here yet", 0.46f, {SW / 2, SH / 2 + 4.f}, {0.5f, 0.5f}, kInk);
+        makeLabel(page, "Add levels with the scroll button on a level's page.", "chatFont.fnt", 0.8f, {SW / 2, SH / 2 - 16.f})->setColor(kInk);
+    } else {
+        float W = SW - 56.f;
+        auto scroll = ScrollLayer::create({W, SH - 66.f});
+        scroll->setPosition({28.f, 22.f});
+        scroll->m_contentLayer->setLayout(ScrollLayer::createDefaultListLayout(0.f));
+        page->addChild(scroll);
 
-    float listH = area.height - 30.f;
-    auto scroll = ScrollLayer::create({area.width, listH});
-    scroll->m_contentLayer->setLayout(ScrollLayer::createDefaultListLayout(4.f));
-    root->addChild(scroll);
+        for (int id : col.ids) {
+            auto* l = Store::get().find(id);
+            auto row = CCNode::create();
+            row->setContentSize({W, 32.f});
+            row->addChild(hairline(W, 0.f, 0.f, 45));
 
-    float W = area.width;
-    for (int id : col.ids) {
-        auto* l = Store::get().find(id);
-        auto row = CCNode::create();
-        row->setContentSize({W, 34.f});
-        auto bg = card({W, 34.f}, 225);
-        bg->setPosition({W / 2, 17.f});
-        row->addChild(bg);
-
-        std::string name = (l && !l->name.empty()) ? l->name : fmt::format("Level {}", id);
-        makeLabel(row, shorten(name, 30), "bigFont.fnt", 0.42f, {10.f, 23.f}, {0.f, 0.5f});
-        if (l) {
-            makeLabel(row, fmt::format("{}   {} tries   {} deaths   best {}%", formatDuration(l->seconds), l->attempts, l->deaths, l->best),
-                "chatFont.fnt", 0.7f, {10.f, 9.f}, {0.f, 0.5f})->setOpacity(190);
-            if (l->completions > 0) {
-                auto stamp = spr("ludo_stamp.png"_spr, 0.85f);
-                stamp->setRotation(-6.f);
-                stamp->setPosition({W - 86.f, 17.f});
-                row->addChild(stamp);
+            std::string name = (l && !l->name.empty()) ? l->name : fmt::format("Level {}", id);
+            makeLabel(row, shorten(name, 30), "bigFont.fnt", 0.4f, {4.f, 21.f}, {0.f, 0.5f})->setColor(kInk);
+            if (l) {
+                auto info = makeLabel(row, fmt::format("{}   {} tries   {} deaths   best {}%", formatDuration(l->seconds), l->attempts, l->deaths, l->best),
+                    "chatFont.fnt", 0.7f, {4.f, 8.f}, {0.f, 0.5f});
+                info->setColor(kInk);
+                info->setOpacity(200);
+                if (l->completions > 0) {
+                    auto stamp = spr("ludo_stamp.png"_spr, 0.85f);
+                    stamp->setRotation(-6.f);
+                    stamp->setPosition({W - 86.f, 16.f});
+                    row->addChild(stamp);
+                }
             }
-        }
-        auto m = CCMenu::create();
-        m->setPosition({0, 0});
-        row->addChild(m);
-        auto goBtn = CCMenuItemSpriteExtra::create(spr("ludo_ic_open.png"_spr, 0.8f), this, menu_selector(Hub::onOpenLevel));
-        goBtn->setTag(id);
-        goBtn->setPosition({W - 54.f, 17.f});
-        m->addChild(goBtn);
-        auto xBtn = CCMenuItemSpriteExtra::create(spr("ludo_ic_x.png"_spr, 0.8f), this, menu_selector(Hub::onRemoveFromCollection));
-        xBtn->setTag(id);
-        xBtn->setPosition({W - 20.f, 17.f});
-        m->addChild(xBtn);
+            auto m = CCMenu::create();
+            m->setPosition({0, 0});
+            row->addChild(m);
+            auto goBtn = CCMenuItemSpriteExtra::create(spr("ludo_ic_open.png"_spr, 0.8f), this, menu_selector(Hub::onOpenLevel));
+            goBtn->setTag(id);
+            goBtn->setPosition({W - 48.f, 16.f});
+            m->addChild(goBtn);
+            auto xBtn = CCMenuItemSpriteExtra::create(spr("ludo_ic_x.png"_spr, 0.8f), this, menu_selector(Hub::onRemoveFromCollection));
+            xBtn->setTag(id);
+            xBtn->setPosition({W - 16.f, 16.f});
+            m->addChild(xBtn);
 
-        scroll->m_contentLayer->addChild(row);
+            scroll->m_contentLayer->addChild(row);
+        }
+        scroll->m_contentLayer->updateLayout();
+        scroll->scrollToTop();
     }
-    scroll->m_contentLayer->updateLayout();
-    scroll->scrollToTop();
+
+    if (ambience()) {
+        page->setScaleY(0.06f);
+        page->runAction(CCEaseBackOut::create(CCScaleTo::create(0.38f, 1.f, 1.f)));
+    }
 }
 
 // ---------------------------------------------------------------- Picker
@@ -901,13 +932,14 @@ PickerPopup* PickerPopup::create(int levelID, std::string name, std::string crea
 }
 
 bool PickerPopup::init(int levelID, std::string name, std::string creator) {
-    if (!Popup::init(300.f, 240.f, "ludo_panel.png"_spr)) return false;
+    if (!Popup::init(300.f, 240.f, "ludo_scroll_page.png"_spr)) return false;
+    if (m_bgSprite) m_bgSprite->setInsets(NineSlice::Insets{16.f, 16.f, 16.f, 16.f});
     m_levelID = levelID;
     this->setCloseButtonSpr(spr("ludo_ic_x.png"_spr));
     auto size = m_size;
-    heading(m_mainLayer, "Add to collection", 0.5f, {size.width / 2, size.height - 24.f});
+    heading(m_mainLayer, "Add to collection", 0.5f, {size.width / 2, size.height - 34.f}, {0.5f, 0.5f}, kInk);
     auto brush = spr("ludo_brush.png"_spr, 0.9f);
-    brush->setPosition({size.width / 2, size.height - 39.f});
+    brush->setPosition({size.width / 2, size.height - 49.f});
     m_mainLayer->addChild(brush);
 
     // make sure the level exists in the store so the collection can show its name
@@ -916,14 +948,14 @@ bool PickerPopup::init(int levelID, std::string name, std::string creator) {
 
     auto& cols = Store::get().collections();
     if (cols.empty()) {
-        makeLabel(m_mainLayer, "No collections yet.", "goldFont.fnt", 0.7f, {size.width / 2, size.height / 2 + 10.f});
-        makeLabel(m_mainLayer, "Create one in the Ludo hub", "chatFont.fnt", 0.8f, {size.width / 2, size.height / 2 - 12.f});
-        makeLabel(m_mainLayer, "(button on the main menu).", "chatFont.fnt", 0.8f, {size.width / 2, size.height / 2 - 28.f});
+        heading(m_mainLayer, "No collections yet", 0.46f, {size.width / 2, size.height / 2 + 8.f}, {0.5f, 0.5f}, kInk);
+        makeLabel(m_mainLayer, "Create one in the Ludo hub", "chatFont.fnt", 0.8f, {size.width / 2, size.height / 2 - 12.f})->setColor(kInk);
+        makeLabel(m_mainLayer, "(button on the main menu).", "chatFont.fnt", 0.8f, {size.width / 2, size.height / 2 - 28.f})->setColor(kInk);
         return true;
     }
 
-    auto scroll = ScrollLayer::create({size.width - 40.f, size.height - 84.f});
-    scroll->setPosition({20.f, 20.f});
+    auto scroll = ScrollLayer::create({size.width - 40.f, size.height - 94.f});
+    scroll->setPosition({20.f, 26.f});
     scroll->m_contentLayer->setLayout(ScrollLayer::createDefaultListLayout(4.f));
     m_mainLayer->addChild(scroll);
     for (size_t i = 0; i < cols.size(); i++) {

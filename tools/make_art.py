@@ -353,6 +353,28 @@ def bar(fill):
     return page(body, w=w, h=h), (w, h)
 
 
+def scroll_page():
+    """An unrolled scroll: wooden rods top and bottom, aged paper between. Nine-slice, 16 pt caps."""
+    w, h = 120, 80
+    body = f"""<svg width="{w}" height="{h}" viewBox="0 0 {w} {h}"><defs>
+<linearGradient id="wood" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a1d18"/><stop offset=".35" stop-color="#7d5c3b"/><stop offset=".7" stop-color="#4a3326"/><stop offset="1" stop-color="#22171a"/></linearGradient>
+<linearGradient id="gold" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#a98230"/><stop offset=".45" stop-color="#f1d58a"/><stop offset="1" stop-color="#b58d36"/></linearGradient>
+<linearGradient id="paper" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#d8c7a3"/><stop offset=".12" stop-color="#eadfc4"/><stop offset=".88" stop-color="#eadfc4"/><stop offset="1" stop-color="#d4c29c"/></linearGradient>
+<linearGradient id="shade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity=".42"/><stop offset=".12" stop-color="#000" stop-opacity="0"/><stop offset=".88" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".42"/></linearGradient>
+<filter id="fib" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".06 .5" numOctaves="3" seed="7"/><feColorMatrix values="0 0 0 0 .45  0 0 0 0 .32  0 0 0 0 .16  0 0 0 .55 -.12"/></filter>
+<filter id="stain"><feGaussianBlur stdDeviation="5"/></filter></defs>
+<rect x="7" y="9" width="106" height="62" fill="url(#paper)"/>
+<rect x="7" y="9" width="106" height="62" filter="url(#fib)" opacity=".55"/>
+<g filter="url(#stain)" opacity=".5"><ellipse cx="34" cy="34" rx="18" ry="8" fill="#b89a62" opacity=".35"/><ellipse cx="92" cy="52" rx="16" ry="9" fill="#b89a62" opacity=".3"/></g>
+<rect x="7" y="9" width="106" height="62" fill="url(#shade)"/>
+<rect x="7.4" y="9.4" width="105.2" height="61.2" fill="none" stroke="rgba(110,76,40,.35)" stroke-width=".8"/>
+<rect x="4" y="1.5" width="112" height="12" rx="6" fill="url(#wood)"/><rect x="0.6" y="0.6" width="7" height="14" rx="3" fill="url(#gold)"/><rect x="112.4" y="0.6" width="7" height="14" rx="3" fill="url(#gold)"/>
+<rect x="4" y="66.5" width="112" height="12" rx="6" fill="url(#wood)"/><rect x="0.6" y="65.4" width="7" height="14" rx="3" fill="url(#gold)"/><rect x="112.4" y="65.4" width="7" height="14" rx="3" fill="url(#gold)"/>
+<path d="M10 4 H110 M10 69 H110" stroke="rgba(255,255,255,.16)" stroke-width="1" stroke-linecap="round"/>
+</svg>"""
+    return page(body, w=w, h=h), (w, h)
+
+
 def scroll_row():
     w, h = 120, 34
     body = f"""<svg width="{w}" height="{h}" viewBox="0 0 {w} {h}"><defs>
@@ -422,6 +444,7 @@ def make_all():
         'ludo_pill_on': lambda: pill(True),
         'ludo_pill_off': lambda: pill(False),
         'ludo_scroll_row': scroll_row,
+        'ludo_scroll_page': scroll_page,
         'ludo_bar_track': lambda: bar(False),
         'ludo_bar_fill': lambda: bar(True),
         'ludo_brush': brush_line,
