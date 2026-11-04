@@ -96,21 +96,15 @@ void Store::save() {
     }
     out += "]}";
 
-    auto dir = Mod::get()->getSaveDir();
-    auto tmp = dir / "stats.json.tmp";
-    auto dest = dir / "stats.json";
-    if (utils::file::writeString(tmp, out).isOk()) {
-        std::error_code ec;
-        std::filesystem::rename(tmp, dest, ec);
-        if (ec) log::warn("Ludo could not save its stats: {}", ec.message());
-        else m_dirty = false;
-    }
+    auto path = Mod::get()->getSaveDir() / "stats.json";
+    // writeStringSafe writes a temporary file first, so a crash never leaves half a file
+    auto res = utils::file::writeStringSafe(path, out);
+    if (res.isOk()) m_dirty = false;
+    else log::warn("Ludo could not save its stats");
 }
 
 void Store::load() {
     auto path = Mod::get()->getSaveDir() / "stats.json";
-    std::error_code ec;
-    if (!std::filesystem::exists(path, ec)) return;
     auto text = utils::file::readString(path);
     if (!text) return;
     auto parsed = matjson::parse(text.unwrap());
