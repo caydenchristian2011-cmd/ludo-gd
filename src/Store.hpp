@@ -1,5 +1,6 @@
 #pragma once
 #include <Geode/Geode.hpp>
+#include <array>
 #include <string>
 #include <vector>
 
@@ -16,6 +17,7 @@ struct LevelStat {
     double seconds = 0;      // time spent inside the level
     long long last = 0;      // unix seconds, last time it was played
     bool favorite = false;
+    std::array<int, 20> hist{};   // deaths per 5% slice of the level
 };
 
 struct Collection {

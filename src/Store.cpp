@@ -23,6 +23,12 @@ static std::string esc(std::string const& s) {
     return out + "\"";
 }
 
+static std::string histText(LevelStat const& l) {
+    std::string out;
+    for (size_t i = 0; i < l.hist.size(); i++) out += (i ? "," : "") + std::to_string(l.hist[i]);
+    return out;
+}
+
 Store& Store::get() {
     static Store inst;
     return inst;
@@ -133,8 +139,8 @@ void Store::save() {
         if (!first) out += ",";
         first = false;
         out += fmt::format(
-            "{{\"id\":{},\"name\":{},\"creator\":{},\"attempts\":{},\"deaths\":{},\"completions\":{},\"best\":{},\"seconds\":{:.2f},\"last\":{},\"favorite\":{}}}",
-            l.id, esc(l.name), esc(l.creator), l.attempts, l.deaths, l.completions, l.best, l.seconds, l.last, l.favorite ? "true" : "false");
+            "{{\"id\":{},\"name\":{},\"creator\":{},\"attempts\":{},\"deaths\":{},\"completions\":{},\"best\":{},\"seconds\":{:.2f},\"last\":{},\"favorite\":{},\"hist\":[{}]}}",
+            l.id, esc(l.name), esc(l.creator), l.attempts, l.deaths, l.completions, l.best, l.seconds, l.last, l.favorite ? "true" : "false", histText(l));
     }
     out += "],\"collections\":[";
     first = true;
@@ -175,6 +181,11 @@ void Store::load() {
         l.seconds = item["seconds"].asDouble().unwrapOr(0.0);
         l.last = static_cast<long long>(item["last"].asInt().unwrapOr(0));
         l.favorite = item["favorite"].asBool().unwrapOr(false);
+        size_t slot = 0;
+        for (auto const& h : item["hist"]) {
+            if (slot >= l.hist.size()) break;
+            l.hist[slot++] = static_cast<int>(h.asInt().unwrapOr(0));
+        }
         m_levels.push_back(std::move(l));
     }
     for (auto const& item : root["collections"]) {

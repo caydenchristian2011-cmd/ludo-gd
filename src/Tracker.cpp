@@ -67,6 +67,8 @@ class $modify(LudoPlayLayer, PlayLayer) {
         if (!nowDead) return;
         if (auto* s = ludo::Store::get().find(m_fields->levelID)) {
             s->deaths++;
+            int slice = static_cast<int>(this->getCurrentPercent() / 5.f);
+            s->hist[std::clamp(slice, 0, 19)]++;
             ludo::Store::get().dirty();
         }
     }
