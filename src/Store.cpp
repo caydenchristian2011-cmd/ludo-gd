@@ -71,6 +71,57 @@ int Store::totalAttempts() const { int t = 0; for (auto& l : m_levels) t += l.at
 int Store::totalDeaths() const { int t = 0; for (auto& l : m_levels) t += l.deaths; return t; }
 int Store::totalCompletions() const { int t = 0; for (auto& l : m_levels) t += l.completions; return t; }
 
+bool Store::isFavorite(int id) {
+    auto* s = find(id);
+    return s && s->favorite;
+}
+
+bool Store::toggleFavorite(int id, std::string const& name, std::string const& creator) {
+    auto& s = level(id, name, creator);
+    s.favorite = !s.favorite;
+    m_dirty = true;
+    saveIfDirty();
+    return s.favorite;
+}
+
+size_t Store::createCollection(std::string name) {
+    if (name.size() > 40) name.resize(40);
+    Collection c;
+    c.name = std::move(name);
+    m_collections.push_back(std::move(c));
+    m_dirty = true;
+    saveIfDirty();
+    return m_collections.size() - 1;
+}
+
+void Store::deleteCollection(size_t index) {
+    if (index >= m_collections.size()) return;
+    m_collections.erase(m_collections.begin() + static_cast<std::ptrdiff_t>(index));
+    m_dirty = true;
+    saveIfDirty();
+}
+
+bool Store::inCollection(size_t index, int id) const {
+    if (index >= m_collections.size()) return false;
+    for (int x : m_collections[index].ids) if (x == id) return true;
+    return false;
+}
+
+void Store::addToCollection(size_t index, int id) {
+    if (index >= m_collections.size() || inCollection(index, id)) return;
+    m_collections[index].ids.push_back(id);
+    m_dirty = true;
+    saveIfDirty();
+}
+
+void Store::removeFromCollection(size_t index, int id) {
+    if (index >= m_collections.size()) return;
+    auto& ids = m_collections[index].ids;
+    ids.erase(std::remove(ids.begin(), ids.end(), id), ids.end());
+    m_dirty = true;
+    saveIfDirty();
+}
+
 void Store::saveIfDirty() {
     if (m_dirty) save();
 }

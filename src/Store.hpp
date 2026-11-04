@@ -41,6 +41,15 @@ public:
     int totalCompletions() const;
     size_t levelCount() const { return m_levels.size(); }
 
+    // favorites and collections
+    bool isFavorite(int id);
+    bool toggleFavorite(int id, std::string const& name, std::string const& creator);   // returns the new state
+    size_t createCollection(std::string name);
+    void deleteCollection(size_t index);
+    bool inCollection(size_t index, int id) const;
+    void addToCollection(size_t index, int id);
+    void removeFromCollection(size_t index, int id);
+
     void dirty() { m_dirty = true; }
     void saveIfDirty();
 
