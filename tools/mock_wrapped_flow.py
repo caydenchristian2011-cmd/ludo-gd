@@ -21,7 +21,7 @@ body = hub + tabs
 if mode == 'popup':
     body += '<div style="position:absolute;inset:0;background:rgba(0,0,0,.55)"></div>'
     pw, ph = 300, 170; px, py = (W - pw) / 2, (H - ph) / 2
-    body += f'''<div style="position:absolute;left:{px}px;top:{py}px;width:{pw}px;height:{ph}px;border-style:solid;border-width:16px;border-image:url({u("scroll_page")}) 64 fill / 16px / 0 stretch"></div>
+    body += f'''<div style="position:absolute;left:{px}px;top:{py}px;width:{pw}px;height:{ph}px;box-sizing:border-box;border-style:solid;border-width:16px;border-image:url({u("scroll_page")}) 64 fill / 16px / 0 stretch"></div>
 <img src="{u("wrap_icon")}" style="position:absolute;left:{W/2-22}px;top:{py+24}px;width:44px">
 <div style="position:absolute;left:{W/2}px;top:{py+72}px;transform:translateX(-50%);font:700 19px Fr,serif;color:{INK};white-space:nowrap">Your October recap is ready</div>
 <div style="position:absolute;left:{W/2}px;top:{py+98}px;transform:translateX(-50%);font:italic 11px Fr,serif;color:{INK};opacity:.8;white-space:nowrap">A look back at your month in Ludo.</div>
