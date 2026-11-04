@@ -1,6 +1,9 @@
 #include "Hub.hpp"
 #include "Store.hpp"
 #include <algorithm>
+#include <array>
+#include <cmath>
+#include <ctime>
 
 using namespace geode::prelude;
 
@@ -18,6 +21,145 @@ static CCLabelBMFont* makeLabel(CCNode* parent, std::string const& text, char co
     l->setPosition(pos);
     parent->addChild(l);
     return l;
+}
+
+// A dark rounded card used for tiles and rows.
+static CCScale9Sprite* makeCard(CCSize size, GLubyte opacity = 255) {
+    auto bg = CCScale9Sprite::create("ludo_tile.png"_spr, {0, 0, 48, 48});
+    bg->setContentSize(size);
+    bg->setOpacity(opacity);
+    return bg;
+}
+
+// A number that counts up from zero when it appears.
+class CountUp : public CCNode {
+public:
+    static CountUp* create(double target, bool isTime, float scale, char const* font) {
+        auto ret = new CountUp();
+        if (ret && ret->setup(target, isTime, scale, font)) {
+            ret->autorelease();
+            return ret;
+        }
+        CC_SAFE_DELETE(ret);
+        return nullptr;
+    }
+
+    bool setup(double target, bool isTime, float scale, char const* font) {
+        if (!CCNode::init()) return false;
+        m_target = target;
+        m_isTime = isTime;
+        m_label = CCLabelBMFont::create("0", font);
+        m_label->setScale(scale);
+        this->addChild(m_label);
+        this->show(0.0);
+        this->scheduleUpdate();
+        return true;
+    }
+
+    void update(float dt) override {
+        m_t += dt;
+        float p = std::min(1.f, m_t / 0.9f);
+        float e = 1.f - (1.f - p) * (1.f - p) * (1.f - p);
+        this->show(m_target * e);
+        if (p >= 1.f) this->unscheduleUpdate();
+    }
+
+private:
+    void show(double v) {
+        std::string text = m_isTime ? formatDuration(v) : std::to_string(static_cast<long long>(v + 0.5));
+        m_label->setString(text.c_str());
+    }
+
+    CCLabelBMFont* m_label = nullptr;
+    double m_target = 0;
+    bool m_isTime = false;
+    float m_t = 0;
+};
+
+// Ink mountain: one peak for every slice of the level where you die.
+static void drawMountain(CCNode* parent, std::array<int, 20> const& hist, CCSize size) {
+    int peak = 0;
+    for (int h : hist) peak = std::max(peak, h);
+    if (peak <= 0) return;
+
+    auto draw = CCDrawNode::create();
+    parent->addChild(draw);
+
+    constexpr int N = 80;   // sample points across the width
+    std::vector<float> hs(N + 1);
+    for (int i = 0; i <= N; i++) {
+        float pos = std::clamp(static_cast<float>(i) / N * 20.f - 0.5f, 0.f, 19.f);
+        int a = static_cast<int>(pos);
+        int b = std::min(a + 1, 19);
+        float f = pos - static_cast<float>(a);
+        f = f * f * (3.f - 2.f * f);   // smoothstep
+        float v = static_cast<float>(hist[a]) * (1.f - f) + static_cast<float>(hist[b]) * f;
+        hs[i] = v / static_cast<float>(peak) * size.height;
+    }
+    ccColor4F fill = {0.93f, 0.89f, 0.87f, 0.16f};
+    ccColor4F line = {1.f, 0.28f, 0.34f, 1.f};
+    for (int i = 0; i < N; i++) {
+        float x0 = size.width * static_cast<float>(i) / N;
+        float x1 = size.width * static_cast<float>(i + 1) / N;
+        CCPoint quad[4] = {{x0, 0}, {x0, hs[i]}, {x1, hs[i + 1]}, {x1, 0}};
+        draw->drawPolygon(quad, 4, fill, 0.f, fill);
+        draw->drawSegment({x0, hs[i]}, {x1, hs[i + 1]}, 0.8f, line);
+    }
+    draw->drawSegment({0, 0}, {size.width, 0}, 0.6f, {0.93f, 0.89f, 0.87f, 0.35f});
+}
+
+// Sun (or moon), drifting petals, all behind the panel's content.
+static void addBackdrop(CCNode* layer, CCSize size, CCNode* bg) {
+    layer->reorderChild(bg, -10);
+
+    std::time_t now = std::time(nullptr);
+    std::tm local{};
+#ifdef _WIN32
+    localtime_s(&local, &now);
+#else
+    localtime_r(&now, &local);
+#endif
+    int hour = local.tm_hour;
+    auto sun = CCSprite::create("ludo_sun.png"_spr);
+    if (sun) {
+        sun->setScale(0.62f);
+        sun->setPosition({size.width - 78.f, size.height - 74.f});
+        sun->setOpacity(125);
+        if (hour >= 22 || hour < 5) {            // night: a pale moon
+            sun->setColor({205, 214, 255});
+            sun->setOpacity(95);
+        } else if (hour < 8 || hour >= 17) {      // dawn and dusk: a warm sun
+            sun->setColor({255, 150, 90});
+        }
+        sun->runAction(CCRepeatForever::create(CCSequence::create(
+            CCEaseSineInOut::create(CCScaleTo::create(4.f, 0.65f)),
+            CCEaseSineInOut::create(CCScaleTo::create(4.f, 0.60f)),
+            nullptr)));
+        layer->addChild(sun, -5);
+    }
+
+    for (int i = 0; i < 6; i++) {
+        auto petal = CCSprite::create("ludo_petal.png"_spr);
+        if (!petal) break;
+        float fall = 2.6f * static_cast<float>(i % 3) + 9.f;
+        float startX = 40.f + (size.width - 80.f) * static_cast<float>(i) / 5.f;
+        float startY = size.height - 22.f;
+        petal->setScale(0.42f + 0.06f * static_cast<float>(i % 3));
+        petal->setOpacity(0);
+        petal->setPosition({startX, startY});
+        petal->runAction(CCSequence::create(
+            CCDelayTime::create(1.4f * static_cast<float>(i)),
+            CCRepeatForever::create(CCSequence::create(
+                CCPlace::create({startX, startY}),
+                CCSpawn::create(
+                    CCMoveBy::create(fall, {(i % 2 ? 36.f : -36.f), -(size.height - 48.f)}),
+                    CCRotateBy::create(fall, (i % 2 ? 300.f : -300.f)),
+                    CCSequence::create(CCFadeTo::create(1.2f, 170), CCDelayTime::create(fall - 2.8f), CCFadeTo::create(1.6f, 0), nullptr),
+                    nullptr),
+                nullptr)),
+            nullptr));
+        layer->addChild(petal, -4);
+    }
 }
 
 static void openLevelPage(int id) {
@@ -39,8 +181,9 @@ Hub* Hub::create() {
 }
 
 bool Hub::init() {
-    if (!Popup::init(460.f, 290.f, "GJ_square02.png")) return false;
+    if (!Popup::init(460.f, 290.f, "ludo_panel.png"_spr)) return false;
     this->setTitle("Ludo");
+    addBackdrop(m_mainLayer, m_mainLayer->getContentSize(), m_bgSprite);
     m_root = CCNode::create();
     m_root->setContentSize(m_mainLayer->getContentSize());
     m_root->setPosition({0, 0});
@@ -102,39 +245,74 @@ void Hub::buildOverview(CCNode* root, CCSize area) {
         return;
     }
 
-    struct Tile { std::string value; char const* caption; };
+    struct Tile { double value; bool isTime; char const* caption; };
     Tile tiles[] = {
-        {formatDuration(st.totalSeconds()), "played"},
-        {std::to_string(st.totalAttempts()), "attempts"},
-        {std::to_string(st.totalDeaths()), "deaths"},
-        {std::to_string(st.totalCompletions()), "completions"},
-        {std::to_string(st.levelCount()), "levels"},
+        {st.totalSeconds(), true, "played"},
+        {static_cast<double>(st.totalAttempts()), false, "attempts"},
+        {static_cast<double>(st.totalDeaths()), false, "deaths"},
+        {static_cast<double>(st.totalCompletions()), false, "completions"},
+        {static_cast<double>(st.levelCount()), false, "levels"},
     };
     float tileW = area.width / 5.f;
     for (int i = 0; i < 5; i++) {
         float cx = tileW * (static_cast<float>(i) + 0.5f);
-        auto bg = CCScale9Sprite::create("square02_001.png", {0, 0, 20, 20});
-        bg->setContentSize({tileW - 8.f, 52.f});
-        bg->setOpacity(90);
+        auto bg = makeCard({tileW - 8.f, 52.f}, 210);
         bg->setPosition({cx, area.height - 30.f});
         root->addChild(bg);
-        makeLabel(root, tiles[i].value, "bigFont.fnt", 0.5f, {cx, area.height - 22.f});
+        auto num = CountUp::create(tiles[i].value, tiles[i].isTime, 0.5f, "bigFont.fnt");
+        num->setPosition({cx, area.height - 22.f});
+        root->addChild(num);
         makeLabel(root, tiles[i].caption, "chatFont.fnt", 0.7f, {cx, area.height - 44.f});
     }
 
-    makeLabel(root, "Most played", "goldFont.fnt", 0.6f, {4.f, area.height - 74.f}, {0.f, 0.5f});
+    // left: most played
+    float colTop = area.height - 74.f;
+    makeLabel(root, "Most played", "goldFont.fnt", 0.6f, {4.f, colTop}, {0.f, 0.5f});
     auto top = st.byTime();
-    float y = area.height - 98.f;
+    float y = colTop - 24.f;
     int shown = 0;
     for (auto* l : top) {
         if (l->seconds < 1.f && shown > 0) break;
         if (shown >= 4) break;
         std::string name = l->name.empty() ? fmt::format("Level {}", l->id) : l->name;
-        makeLabel(root, fmt::format("{}.  {}", shown + 1, shorten(name, 28)), "bigFont.fnt", 0.4f, {4.f, y}, {0.f, 0.5f});
-        makeLabel(root, fmt::format("{}   {} deaths", formatDuration(l->seconds), l->deaths), "chatFont.fnt", 0.8f, {area.width - 4.f, y}, {1.f, 0.5f});
-        y -= 24.f;
+        makeLabel(root, fmt::format("{}.  {}", shown + 1, shorten(name, 17)), "bigFont.fnt", 0.36f, {4.f, y}, {0.f, 0.5f});
+        makeLabel(root, formatDuration(l->seconds), "chatFont.fnt", 0.75f, {196.f, y}, {1.f, 0.5f});
+        y -= 22.f;
         shown++;
     }
+
+    // right: the death mountain of the level you die in most
+    LevelStat* worst = nullptr;
+    int worstSum = 0;
+    for (auto* l : top) {
+        int sum = 0;
+        for (int h : l->hist) sum += h;
+        if (sum > worstSum) { worstSum = sum; worst = l; }
+    }
+    float mx = 220.f, mw = area.width - mx - 4.f;
+    makeLabel(root, "Death mountain", "goldFont.fnt", 0.6f, {mx, colTop}, {0.f, 0.5f});
+    if (!worst) {
+        makeLabel(root, "Play a level and the places you die show up here.", "chatFont.fnt", 0.7f, {mx + mw / 2, colTop - 56.f});
+        return;
+    }
+    std::string wn = worst->name.empty() ? fmt::format("Level {}", worst->id) : worst->name;
+    makeLabel(root, shorten(wn, 24), "chatFont.fnt", 0.7f, {mx + mw, colTop}, {1.f, 0.5f});
+
+    auto frame = makeCard({mw, 84.f}, 150);
+    frame->setAnchorPoint({0, 0});
+    frame->setPosition({mx, colTop - 100.f});
+    root->addChild(frame);
+    auto peakNode = CCNode::create();
+    peakNode->setPosition({mx + 8.f, colTop - 92.f});
+    root->addChild(peakNode);
+    float gw = mw - 16.f;
+    drawMountain(peakNode, worst->hist, {gw, 54.f});
+
+    int peakIdx = 0;
+    for (int i = 1; i < 20; i++) if (worst->hist[i] > worst->hist[peakIdx]) peakIdx = i;
+    makeLabel(root, fmt::format("most deaths at {}-{}%", peakIdx * 5, peakIdx * 5 + 5), "chatFont.fnt", 0.65f, {mx + mw / 2, colTop - 18.f});
+    makeLabel(root, "0%", "chatFont.fnt", 0.55f, {mx + 8.f, colTop - 97.f}, {0.f, 0.5f});
+    makeLabel(root, "100%", "chatFont.fnt", 0.55f, {mx + mw - 8.f, colTop - 97.f}, {1.f, 0.5f});
 }
 
 // ---------------------------------------------------------------- Levels
@@ -188,27 +366,48 @@ void Hub::buildLevels(CCNode* root, CCSize area) {
         auto row = CCNode::create();
         row->setContentSize({area.width, 34.f});
 
-        auto bg = CCScale9Sprite::create("square02_001.png", {0, 0, 20, 20});
-        bg->setContentSize({area.width, 34.f});
-        bg->setOpacity(70);
+        auto bg = makeCard({area.width, 34.f}, 200);
         bg->setAnchorPoint({0, 0});
         row->addChild(bg);
 
         std::string name = l->name.empty() ? fmt::format("Level {}", l->id) : l->name;
         makeLabel(row, shorten(name, 30), "bigFont.fnt", 0.42f, {10.f, 23.f}, {0.f, 0.5f});
-        makeLabel(row, fmt::format("{}   {} attempts   {} deaths   best {}%", formatDuration(l->seconds), l->attempts, l->deaths, l->best),
+        makeLabel(row, fmt::format("{}   {} tries   {} deaths", formatDuration(l->seconds), l->attempts, l->deaths),
             "chatFont.fnt", 0.7f, {10.f, 9.f}, {0.f, 0.5f});
 
         auto menu = CCMenu::create();
         menu->setPosition({0, 0});
         row->addChild(menu);
 
-        auto star = CircleButtonSprite::createWithSpriteFrameName("GJ_starsIcon_001.png", 0.9f,
-            l->favorite ? CircleBaseColor::Green : CircleBaseColor::Gray, CircleBaseSize::Tiny);
+        auto star = CCSprite::create(l->favorite ? "ludo_blossom_on.png"_spr : "ludo_blossom_off.png"_spr);
+        star->setScale(0.5f);
         auto favBtn = CCMenuItemSpriteExtra::create(star, this, menu_selector(Hub::onFav));
         favBtn->setTag(l->id);
         favBtn->setPosition({area.width - 54.f, 17.f});
         menu->addChild(favBtn);
+
+        // red seal for levels you have beaten
+        if (l->completions > 0) {
+            auto stamp = CCSprite::create("ludo_stamp.png"_spr);
+            stamp->setScale(0.36f);
+            stamp->setRotation(-6.f);
+            stamp->setPosition({area.width - 88.f, 17.f});
+            row->addChild(stamp);
+        }
+
+        // best percent as a brush stroke under the stats line
+        float barW = 60.f;
+        auto track = makeCard({barW, 5.f}, 120);
+        track->setAnchorPoint({0, 0.5f});
+        track->setPosition({area.width - 160.f, 8.f});
+        row->addChild(track);
+        if (l->best > 0) {
+            auto fillBar = makeCard({std::max(8.f, barW * static_cast<float>(l->best) / 100.f), 5.f}, 255);
+            fillBar->setColor({232, 52, 70});
+            fillBar->setAnchorPoint({0, 0.5f});
+            fillBar->setPosition({area.width - 160.f, 8.f});
+            row->addChild(fillBar);
+        }
 
         auto go = CCSprite::createWithSpriteFrameName("GJ_arrow_03_001.png");
         go->setFlipX(true);
@@ -238,7 +437,7 @@ void Hub::onNewCollection(CCObject*) {
             return nullptr;
         }
         bool setup(Hub* h) {
-            if (!Popup::init(280.f, 140.f, "GJ_square02.png")) return false;
+            if (!Popup::init(280.f, 140.f, "ludo_panel.png"_spr)) return false;
             hub = h;
             this->setTitle("New collection");
             auto sz = m_mainLayer->getContentSize();
@@ -319,9 +518,7 @@ void Hub::buildCollections(CCNode* root, CCSize area) {
     for (size_t i = 0; i < cols.size(); i++) {
         auto row = CCNode::create();
         row->setContentSize({area.width, 34.f});
-        auto bg = CCScale9Sprite::create("square02_001.png", {0, 0, 20, 20});
-        bg->setContentSize({area.width, 34.f});
-        bg->setOpacity(70);
+        auto bg = makeCard({area.width, 34.f}, 200);
         bg->setAnchorPoint({0, 0});
         row->addChild(bg);
 
@@ -381,9 +578,7 @@ void Hub::buildCollectionDetail(CCNode* root, CCSize area) {
         auto* l = Store::get().find(id);
         auto row = CCNode::create();
         row->setContentSize({area.width, 34.f});
-        auto bg = CCScale9Sprite::create("square02_001.png", {0, 0, 20, 20});
-        bg->setContentSize({area.width, 34.f});
-        bg->setOpacity(70);
+        auto bg = makeCard({area.width, 34.f}, 200);
         bg->setAnchorPoint({0, 0});
         row->addChild(bg);
 
@@ -429,7 +624,7 @@ PickerPopup* PickerPopup::create(int levelID, std::string name, std::string crea
 }
 
 bool PickerPopup::init(int levelID, std::string name, std::string creator) {
-    if (!Popup::init(300.f, 240.f, "GJ_square02.png")) return false;
+    if (!Popup::init(300.f, 240.f, "ludo_panel.png"_spr)) return false;
     m_levelID = levelID;
     this->setTitle("Add to collection");
     // make sure the level exists in the store so the collection can show its name
