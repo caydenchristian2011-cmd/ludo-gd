@@ -35,6 +35,8 @@ static CCLabelBMFont* heading(CCNode* parent, std::string const& text, float sca
     if (!l) {
         l = CCLabelBMFont::create(text.c_str(), "goldFont.fnt");
         scale *= 0.8f;
+    } else {
+        scale *= 1.5f;   // Fraunces is drawn small in its atlas; this puts it level with the game's own text
     }
     l->setScale(scale);
     l->setAnchorPoint(anchor);
