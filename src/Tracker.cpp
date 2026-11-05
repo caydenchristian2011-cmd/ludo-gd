@@ -13,6 +13,7 @@ class $modify(LudoPlayLayer, PlayLayer) {
         int levelID = 0;
         double pending = 0;   // seconds not yet added to the Store
         double sinceSave = 0;
+        int lastPct = -1;     // last whole percent noted this attempt
     };
 
     void flushTime() {
@@ -48,9 +49,14 @@ class $modify(LudoPlayLayer, PlayLayer) {
         PlayLayer::postUpdate(dt);
         auto& f = m_fields;
         if (!f->levelID || m_isPaused) return;
-        if (m_player1 && !m_player1->m_isDead && !m_isPlatformer) {   // remember how high you fly at each % (Drill uses it)
-            int pct = static_cast<int>(this->getCurrentPercent());
-            ludo::Drill::get().noteY(f->levelID, std::clamp(pct, 0, 100), m_player1->getPositionY());
+        if (m_player1 && !m_player1->m_isDead && !m_isPlatformer && !ludo::Drill::get().drilling(f->levelID)) {
+            // remember where you are at each whole % (Drill spawns you there). Only the first frame at a %
+            // counts, so the height matches that exact spot in the level.
+            int pct = std::clamp(static_cast<int>(this->getCurrentPercent()), 0, 100);
+            if (pct != f->lastPct) {
+                f->lastPct = pct;
+                ludo::Drill::get().noteY(f->levelID, pct, m_player1->getPositionY(), m_player1->m_isUpsideDown);
+            }
         }
         double step = std::min<double>(dt, 0.5);   // a long hitch is not play time
         f->pending += step;
@@ -60,6 +66,7 @@ class $modify(LudoPlayLayer, PlayLayer) {
 
     void resetLevel() {
         PlayLayer::resetLevel();
+        m_fields->lastPct = -1;
         if (!m_fields->levelID) return;
         if (ludo::Drill::get().drilling(m_fields->levelID)) return;   // drill runs are not real attempts
         if (auto* s = ludo::Store::get().find(m_fields->levelID)) {

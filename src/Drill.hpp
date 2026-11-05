@@ -47,8 +47,8 @@ public:
 
     // Where the player actually was, per 1% of each level. A start pos is placed at that height,
     // because the portals alone do not say how high a ship or ufo is flying there.
-    void noteY(int levelId, int percent, float y);
-    float yAt(int levelId, float percent, float fallback, bool* found = nullptr) const;
+    void noteY(int levelId, int percent, float y, bool upsideDown);
+    float yAt(int levelId, float percent, float fallback, bool* found = nullptr, int* flipped = nullptr) const;   // flipped: -1 unknown, 0 no, 1 yes
 
     // The live session (not saved).
     struct Session {
@@ -66,7 +66,8 @@ private:
     void load();
 
     std::vector<Spot> m_spots;
-    std::map<int, std::array<float, 101>> m_trail;
+    std::map<int, std::array<float, 101>> m_trail;   // height, 0 = not seen yet
+    std::map<int, std::array<signed char, 101>> m_flip;   // 0 unknown, 1 upright, 2 upside down
     Session m_session;
     bool m_dirty = false;
 };

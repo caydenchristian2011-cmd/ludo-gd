@@ -146,8 +146,14 @@ void Drill::onDeath(Spot& s) {
     m_dirty = true;
 }
 
-void Drill::noteY(int levelId, int percent, float y) {
+void Drill::noteY(int levelId, int percent, float y, bool upsideDown) {
     if (percent < 0 || percent > 100) return;
+    {
+        auto fit = m_flip.find(levelId);
+        if (fit == m_flip.end()) fit = m_flip.emplace(levelId, std::array<signed char, 101>{}).first;
+        signed char v = upsideDown ? 2 : 1;
+        if (fit->second[static_cast<size_t>(percent)] != v) { fit->second[static_cast<size_t>(percent)] = v; m_dirty = true; }
+    }
     auto it = m_trail.find(levelId);
     if (it == m_trail.end()) it = m_trail.emplace(levelId, std::array<float, 101>{}).first;
     if (std::abs(it->second[static_cast<size_t>(percent)] - y) < 1.f) return;
@@ -155,8 +161,22 @@ void Drill::noteY(int levelId, int percent, float y) {
     m_dirty = true;
 }
 
-float Drill::yAt(int levelId, float percent, float fallback, bool* found) const {
+float Drill::yAt(int levelId, float percent, float fallback, bool* found, int* flipped) const {
     if (found) *found = false;
+    if (flipped) {
+        *flipped = -1;
+        auto fit = m_flip.find(levelId);
+        if (fit != m_flip.end()) {
+            int p = std::clamp(static_cast<int>(percent + 0.5f), 0, 100);
+            for (int d = 0; d <= 3 && *flipped < 0; d++)
+                for (int sign : {-1, 1}) {
+                    int q = p + sign * d;
+                    if (q < 0 || q > 100) continue;
+                    signed char v = fit->second[static_cast<size_t>(q)];
+                    if (v) { *flipped = v == 2 ? 1 : 0; break; }
+                }
+        }
+    }
     auto it = m_trail.find(levelId);
     if (it == m_trail.end()) return fallback;
     int p = std::clamp(static_cast<int>(percent + 0.5f), 0, 100);
@@ -180,13 +200,16 @@ void Drill::save() {
         out += fmt::format("{{\"level\":{},\"from\":{},\"to\":{},\"stage\":{},\"clean\":{},\"due\":{},\"passes\":{},\"deaths\":{},\"mastered\":{}}}",
             s.levelId, s.from, s.to, s.stage, s.clean, s.due, s.passes, s.deaths, s.mastered ? "true" : "false");
     }
-    out += "],\"trail\":[";
+    out += "],\"path\":[";
     first = true;
     for (auto& [id, ys] : m_trail) {
         if (!first) out += ",";
         first = false;
         out += fmt::format("{{\"level\":{},\"y\":[", id);
         for (size_t i = 0; i < ys.size(); i++) out += fmt::format("{}{:.0f}", i ? "," : "", ys[i]);
+        out += "],\"f\":[";
+        auto fit = m_flip.find(id);
+        for (size_t i = 0; i < 101; i++) out += fmt::format("{}{}", i ? "," : "", fit == m_flip.end() ? 0 : static_cast<int>(fit->second[i]));
         out += "]}";
     }
     out += "]}";
@@ -201,13 +224,17 @@ void Drill::load() {
     auto parsed = matjson::parse(text.unwrap());
     if (!parsed) { log::warn("Ludo: drill.json could not be read, starting fresh"); return; }
     auto root = parsed.unwrap();
-    for (auto const& item : root["trail"]) {
+    for (auto const& item : root["path"]) {
         int id = static_cast<int>(item["level"].asInt().unwrapOr(0));
         if (id <= 0) continue;
         std::array<float, 101> ys{};
         size_t i = 0;
         for (auto const& v : item["y"]) { if (i >= ys.size()) break; ys[i++] = static_cast<float>(v.asDouble().unwrapOr(0.0)); }
         m_trail[id] = ys;
+        std::array<signed char, 101> fs{};
+        size_t k = 0;
+        for (auto const& v : item["f"]) { if (k >= fs.size()) break; fs[k++] = static_cast<signed char>(v.asInt().unwrapOr(0)); }
+        m_flip[id] = fs;
     }
     for (auto const& item : root["spots"]) {
         Spot s;

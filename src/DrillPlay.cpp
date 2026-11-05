@@ -112,7 +112,9 @@ class $modify(LudoDrillLayer, PlayLayer) {
         float x = spot.startPercent() / 100.f * m_levelLength;
         auto st = this->stateAt(x);
         bool known = false;
-        st.y = ludo::Drill::get().yAt(spot.levelId, spot.startPercent(), st.y, &known);
+        int seenFlip = -1;
+        st.y = ludo::Drill::get().yAt(spot.levelId, spot.startPercent(), st.y, &known, &seenFlip);
+        if (seenFlip >= 0) st.flipped = seenFlip == 1;   // what you actually flew beats what the portals suggest
         if (!known && st.mode != 0) {
             Notification::create("Play this level past " + fmt::format("{}%", static_cast<int>(spot.startPercent())) + " once so Drill learns the height", NotificationIcon::Info, 3.f)->show();
         }
