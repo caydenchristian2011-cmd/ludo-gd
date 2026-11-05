@@ -185,10 +185,10 @@ static void drawMountain(CCNode* parent, std::array<int, 20> const& hist, float 
     float x0 = 1.f, span = width - 2.f;
 
     // far ridge: the same range, shifted and lower, so the scene has depth
-    std::vector<float> far(N + 1);
+    std::vector<float> farH(N + 1);
     for (int i = 0; i <= N; i++) {
         int j = std::min(N, i + 14);
-        far[i] = base + 3.f + (hs[j] - base - 3.f) * 0.55f;
+        farH[i] = base + 3.f + (hs[j] - base - 3.f) * 0.55f;
     }
     ccColor4F farFill = {0.17f, 0.07f, 0.11f, 1.f};
     ccColor4F farLine = {0.62f, 0.25f, 0.33f, 0.75f};
@@ -197,9 +197,9 @@ static void drawMountain(CCNode* parent, std::array<int, 20> const& hist, float 
     for (int i = 0; i < N; i++) {
         float xa = x0 + span * static_cast<float>(i) / N;
         float xb = x0 + span * static_cast<float>(i + 1) / N;
-        CCPoint q[4] = {{xa, base - 1.f}, {xa, far[i]}, {xb, far[i + 1]}, {xb, base - 1.f}};
+        CCPoint q[4] = {{xa, base - 1.f}, {xa, farH[i]}, {xb, farH[i + 1]}, {xb, base - 1.f}};
         draw->drawPolygon(q, 4, farFill, 0.f, farFill);
-        draw->drawSegment({xa, far[i]}, {xb, far[i + 1]}, 0.5f, farLine);
+        draw->drawSegment({xa, farH[i]}, {xb, farH[i + 1]}, 0.5f, farLine);
     }
     for (int i = 0; i < N; i++) {
         float xa = x0 + span * static_cast<float>(i) / N;
