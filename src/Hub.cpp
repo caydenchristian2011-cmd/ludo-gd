@@ -537,10 +537,10 @@ void Hub::buildOverview(CCNode* root, CCSize area) {
         auto bg = card({tileW - 8.f, 52.f}, 235);
         bg->setPosition({cx, area.height - 28.f});
         root->addChild(bg);
-        auto num = CountUp::create(tiles[i].value, tiles[i].isTime, 0.5f, animate);
-        num->setPosition({cx, area.height - 22.f});
+        auto num = CountUp::create(tiles[i].value, tiles[i].isTime, 0.8f, animate);
+        num->setPosition({cx, area.height - 21.f});
         root->addChild(num);
-        makeLabel(root, tiles[i].caption, "chatFont.fnt", 0.7f, {cx, area.height - 42.f})->setOpacity(190);
+        makeLabel(root, tiles[i].caption, "chatFont.fnt", 0.6f, {cx, area.height - 43.f})->setOpacity(190);
     }
 
     // left: most played
