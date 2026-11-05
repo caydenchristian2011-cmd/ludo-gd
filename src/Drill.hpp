@@ -1,5 +1,7 @@
 #pragma once
 #include <Geode/Geode.hpp>
+#include <array>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -41,6 +43,12 @@ public:
     bool onPass(Spot& s);    // one clean run of the spot; true when it moved up a stage
     void onDeath(Spot& s);   // a death inside the spot breaks the streak
     void save();
+    void saveIfDirty() { if (m_dirty) save(); }
+
+    // Where the player actually was, per 1% of each level. A start pos is placed at that height,
+    // because the portals alone do not say how high a ship or ufo is flying there.
+    void noteY(int levelId, int percent, float y);
+    float yAt(int levelId, float percent, float fallback, bool* found = nullptr) const;
 
     // The live session (not saved).
     struct Session {
@@ -58,6 +66,7 @@ private:
     void load();
 
     std::vector<Spot> m_spots;
+    std::map<int, std::array<float, 101>> m_trail;
     Session m_session;
     bool m_dirty = false;
 };

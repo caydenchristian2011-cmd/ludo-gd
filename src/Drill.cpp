@@ -1,6 +1,7 @@
 #include "Drill.hpp"
 #include "Store.hpp"
 #include <algorithm>
+#include <cmath>
 #include <ctime>
 
 using namespace geode::prelude;
@@ -145,6 +146,31 @@ void Drill::onDeath(Spot& s) {
     m_dirty = true;
 }
 
+void Drill::noteY(int levelId, int percent, float y) {
+    if (percent < 0 || percent > 100) return;
+    auto it = m_trail.find(levelId);
+    if (it == m_trail.end()) it = m_trail.emplace(levelId, std::array<float, 101>{}).first;
+    if (std::abs(it->second[static_cast<size_t>(percent)] - y) < 1.f) return;
+    it->second[static_cast<size_t>(percent)] = y;
+    m_dirty = true;
+}
+
+float Drill::yAt(int levelId, float percent, float fallback, bool* found) const {
+    if (found) *found = false;
+    auto it = m_trail.find(levelId);
+    if (it == m_trail.end()) return fallback;
+    int p = std::clamp(static_cast<int>(percent + 0.5f), 0, 100);
+    for (int d = 0; d <= 3; d++) {   // nearest known point within 3%
+        for (int sign : {-1, 1}) {
+            int q = p + sign * d;
+            if (q < 0 || q > 100) continue;
+            float y = it->second[static_cast<size_t>(q)];
+            if (y > 0.f) { if (found) *found = true; return y; }
+        }
+    }
+    return fallback;
+}
+
 void Drill::save() {
     std::string out = "{\"v\":1,\"spots\":[";
     bool first = true;
@@ -153,6 +179,15 @@ void Drill::save() {
         first = false;
         out += fmt::format("{{\"level\":{},\"from\":{},\"to\":{},\"stage\":{},\"clean\":{},\"due\":{},\"passes\":{},\"deaths\":{},\"mastered\":{}}}",
             s.levelId, s.from, s.to, s.stage, s.clean, s.due, s.passes, s.deaths, s.mastered ? "true" : "false");
+    }
+    out += "],\"trail\":[";
+    first = true;
+    for (auto& [id, ys] : m_trail) {
+        if (!first) out += ",";
+        first = false;
+        out += fmt::format("{{\"level\":{},\"y\":[", id);
+        for (size_t i = 0; i < ys.size(); i++) out += fmt::format("{}{:.0f}", i ? "," : "", ys[i]);
+        out += "]}";
     }
     out += "]}";
     auto res = utils::file::writeStringSafe(Mod::get()->getSaveDir() / "drill.json", out);
@@ -165,7 +200,16 @@ void Drill::load() {
     if (!text) return;
     auto parsed = matjson::parse(text.unwrap());
     if (!parsed) { log::warn("Ludo: drill.json could not be read, starting fresh"); return; }
-    for (auto const& item : parsed.unwrap()["spots"]) {
+    auto root = parsed.unwrap();
+    for (auto const& item : root["trail"]) {
+        int id = static_cast<int>(item["level"].asInt().unwrapOr(0));
+        if (id <= 0) continue;
+        std::array<float, 101> ys{};
+        size_t i = 0;
+        for (auto const& v : item["y"]) { if (i >= ys.size()) break; ys[i++] = static_cast<float>(v.asDouble().unwrapOr(0.0)); }
+        m_trail[id] = ys;
+    }
+    for (auto const& item : root["spots"]) {
         Spot s;
         s.levelId = static_cast<int>(item["level"].asInt().unwrapOr(0));
         s.from = std::clamp(static_cast<int>(item["from"].asInt().unwrapOr(0)), 0, 19);

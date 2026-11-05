@@ -26,6 +26,7 @@ class $modify(LudoPlayLayer, PlayLayer) {
         s->best = std::max(s->best, static_cast<int>(m_level->m_normalPercent.value()));
         ludo::Store::get().dirty();
         ludo::Store::get().saveIfDirty();
+        ludo::Drill::get().saveIfDirty();
         f->sinceSave = 0;
     }
 
@@ -47,6 +48,10 @@ class $modify(LudoPlayLayer, PlayLayer) {
         PlayLayer::postUpdate(dt);
         auto& f = m_fields;
         if (!f->levelID || m_isPaused) return;
+        if (m_player1 && !m_player1->m_isDead && !m_isPlatformer) {   // remember how high you fly at each % (Drill uses it)
+            int pct = static_cast<int>(this->getCurrentPercent());
+            ludo::Drill::get().noteY(f->levelID, std::clamp(pct, 0, 100), m_player1->getPositionY());
+        }
         double step = std::min<double>(dt, 0.5);   // a long hitch is not play time
         f->pending += step;
         f->sinceSave += step;

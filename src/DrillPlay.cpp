@@ -111,6 +111,12 @@ class $modify(LudoDrillLayer, PlayLayer) {
     void placeStart(ludo::Spot const& spot) {
         float x = spot.startPercent() / 100.f * m_levelLength;
         auto st = this->stateAt(x);
+        bool known = false;
+        st.y = ludo::Drill::get().yAt(spot.levelId, spot.startPercent(), st.y, &known);
+        if (!known && st.mode != 0) {
+            Notification::create("Play this level past " + fmt::format("{}%", static_cast<int>(spot.startPercent())) + " once so Drill learns the height", NotificationIcon::Info, 3.f)->show();
+        }
+        log::info("Ludo drill: height {:.0f} ({})", st.y, known ? "from your own runs" : "guessed from portals");
         log::info("Ludo drill: level {} spot {} -> x={:.0f} y={:.0f} mode={} speed={} mini={} dual={} mirror={} flipped={}",
             spot.levelId, spot.label(), x, st.y, st.mode, static_cast<int>(st.speed), st.mini, st.dual, st.mirror, st.flipped);
 
