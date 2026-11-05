@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <ctime>
 #include "Store.hpp"
+#include "Drill.hpp"
 
 using namespace geode::prelude;
 
@@ -55,6 +56,7 @@ class $modify(LudoPlayLayer, PlayLayer) {
     void resetLevel() {
         PlayLayer::resetLevel();
         if (!m_fields->levelID) return;
+        if (ludo::Drill::get().drilling(m_fields->levelID)) return;   // drill runs are not real attempts
         if (auto* s = ludo::Store::get().find(m_fields->levelID)) {
             s->attempts++;
             ludo::Store::get().logAttempt(m_fields->levelID);
@@ -69,6 +71,10 @@ class $modify(LudoPlayLayer, PlayLayer) {
         if (isAnticheat || wasDead || !m_fields->levelID) return;
         bool nowDead = (m_player1 && m_player1->m_isDead) || (m_player2 && m_player2->m_isDead);
         if (!nowDead) return;
+        if (ludo::Drill::get().drilling(m_fields->levelID)) {   // a drill death goes to the spot, not the level's own history
+            if (auto* spot = ludo::Drill::get().current()) ludo::Drill::get().onDeath(*spot);
+            return;
+        }
         if (auto* s = ludo::Store::get().find(m_fields->levelID)) {
             s->deaths++;
             int slice = static_cast<int>(this->getCurrentPercent() / 5.f);

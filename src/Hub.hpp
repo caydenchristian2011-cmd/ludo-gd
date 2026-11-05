@@ -11,15 +11,17 @@ public:
 protected:
     bool init();
 
-    enum class Tab { Overview, Levels, Collections };
+    enum class Tab { Overview, Levels, Collections, Drill };
 
     void build();                 // rebuilds the tab bar and the current tab
     void buildOverview(cocos2d::CCNode* root, cocos2d::CCSize area);
     void buildLevels(cocos2d::CCNode* root, cocos2d::CCSize area);
     void buildCollections(cocos2d::CCNode* root, cocos2d::CCSize area);
     void buildCollectionDetail(cocos2d::CCNode* root, cocos2d::CCSize area);
+    void buildDrill(cocos2d::CCNode* root, cocos2d::CCSize area);
 
     void onTab(cocos2d::CCObject*);
+    void onDrillStart(cocos2d::CCObject*);
     void onFavFilter(cocos2d::CCObject*);
     void onFav(cocos2d::CCObject*);
     void onOpenLevel(cocos2d::CCObject*);

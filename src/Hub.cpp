@@ -1,6 +1,7 @@
 #include "Hub.hpp"
 #include "Store.hpp"
 #include "BranchData.hpp"
+#include "Drill.hpp"
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -399,15 +400,15 @@ void Hub::build() {
     bar->setPosition({0, 0});
     m_root->addChild(bar);
     struct T { char const* name; Tab tab; };
-    T tabs[] = {{"Overview", Tab::Overview}, {"Levels", Tab::Levels}, {"Collections", Tab::Collections}};
-    float x = 82.f;
+    T tabs[] = {{"Overview", Tab::Overview}, {"Levels", Tab::Levels}, {"Collections", Tab::Collections}, {"Drill", Tab::Drill}};
+    float x = 70.f;
     for (auto& t : tabs) {
         bool active = t.tab == m_tab;
-        auto btn = CCMenuItemSpriteExtra::create(pill(t.name, 92.f, active), this, menu_selector(Hub::onTab));
+        auto btn = CCMenuItemSpriteExtra::create(pill(t.name, 84.f, active), this, menu_selector(Hub::onTab));
         btn->setTag(static_cast<int>(t.tab));
         btn->setPosition({x, size.height - 62.f});
         bar->addChild(btn);
-        x += 96.f;
+        x += 88.f;
     }
 
     auto area = CCSize{size.width - 40.f, 162.f};
@@ -423,6 +424,7 @@ void Hub::build() {
             if (m_viewing >= 0) this->buildCollectionDetail(content, area);
             else this->buildCollections(content, area);
             break;
+        case Tab::Drill: this->buildDrill(content, area); break;
     }
 
     // footer, left of the friend
@@ -698,6 +700,86 @@ void Hub::buildLevels(CCNode* root, CCSize area) {
         goBtn->setPosition({W - 20.f, 17.f});
         menu->addChild(goBtn);
 
+        scroll->m_contentLayer->addChild(row);
+    }
+    scroll->m_contentLayer->updateLayout();
+    scroll->scrollToTop();
+}
+
+// ---------------------------------------------------------------- Drill
+
+void Hub::onDrillStart(CCObject* sender) {
+    int tag = static_cast<CCNode*>(sender)->getTag();
+    auto& d = Drill::get();
+    Spot* spot = nullptr;
+    if (tag < 0) spot = d.nextDue(0);
+    else if (static_cast<size_t>(tag) < d.spots().size()) spot = &d.spots()[static_cast<size_t>(tag)];
+    if (!spot) return;
+    if (startDrill(*spot)) this->onClose(nullptr);
+}
+
+void Hub::buildDrill(CCNode* root, CCSize area) {
+    auto& drill = Drill::get();
+    drill.refresh();
+    auto& spots = drill.spots();
+
+    std::vector<size_t> order;
+    for (size_t i = 0; i < spots.size(); i++) if (!spots[i].mastered) order.push_back(i);
+    std::sort(order.begin(), order.end(), [&](size_t a, size_t b) { return spots[a].due < spots[b].due; });
+
+    if (order.empty()) {
+        heading(root, "Nothing to drill yet", 0.5f, {area.width / 2, area.height / 2 + 14.f});
+        makeLabel(root, "Drill finds the places you keep dying. It needs a few deaths", "chatFont.fnt", 0.75f, {area.width / 2, area.height / 2 - 10.f});
+        makeLabel(root, "in a level before it can pick a spot to practise.", "chatFont.fnt", 0.75f, {area.width / 2, area.height / 2 - 24.f});
+        return;
+    }
+
+    int due = drill.dueCount();
+    long long today = Drill::epochDay();
+    heading(root, due > 0 ? fmt::format("{} due today", due) : std::string("All caught up"), 0.4f, {4.f, area.height - 12.f}, {0.f, 0.5f},
+        {255, 120, 130});
+
+    auto top = CCMenu::create();
+    top->setPosition({0, 0});
+    root->addChild(top);
+    if (due > 0) {
+        auto go = CCMenuItemSpriteExtra::create(pill("Start drill", 110.f, true, 24.f), this, menu_selector(Hub::onDrillStart));
+        go->setTag(-1);
+        go->setPosition({area.width - 55.f, area.height - 12.f});
+        top->addChild(go);
+    }
+
+    float listH = area.height - 30.f;
+    auto scroll = ScrollLayer::create({area.width, listH});
+    scroll->m_contentLayer->setLayout(ScrollLayer::createDefaultListLayout(4.f));
+    root->addChild(scroll);
+
+    float W = area.width;
+    for (size_t i : order) {
+        auto& s = spots[i];
+        auto row = CCNode::create();
+        row->setContentSize({W, 34.f});
+        auto bg = nine("ludo_scroll_row.png"_spr, {W, 34.f}, NineSlice::Insets{10.f, 26.f, 10.f, 26.f});
+        bg->setPosition({W / 2, 17.f});
+        row->addChild(bg);
+
+        auto* l = Store::get().find(s.levelId);
+        std::string name = (l && !l->name.empty()) ? l->name : fmt::format("Level {}", s.levelId);
+        heading(row, shorten(name, 24), 0.36f, {46.f, 22.f}, {0.f, 0.5f});
+        long long gap = s.due - today;
+        std::string when = gap <= 0 ? "due now" : (gap == 1 ? "tomorrow" : fmt::format("in {} days", gap));
+        makeLabel(row, fmt::format("{}   step {}/{}   {}", s.label(), s.stage + 1, Drill::kStages + 1, when), "chatFont.fnt", 0.7f, {46.f, 9.f}, {0.f, 0.5f})
+            ->setOpacity(190);
+
+        if (gap <= 0) {
+            auto m = CCMenu::create();
+            m->setPosition({0, 0});
+            row->addChild(m);
+            auto b = CCMenuItemSpriteExtra::create(pill("Drill", 62.f, true, 24.f), this, menu_selector(Hub::onDrillStart));
+            b->setTag(static_cast<int>(i));
+            b->setPosition({W - 48.f, 17.f});
+            m->addChild(b);
+        }
         scroll->m_contentLayer->addChild(row);
     }
     scroll->m_contentLayer->updateLayout();
