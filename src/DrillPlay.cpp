@@ -114,10 +114,12 @@ class $modify(LudoDrillLayer, PlayLayer) {
         bool known = false;
         int seenFlip = -1;
         st.y = ludo::Drill::get().yAt(spot.levelId, spot.startPercent(), st.y, &known, &seenFlip);
+        bool portalFlip = st.flipped;
         if (seenFlip >= 0) st.flipped = seenFlip == 1;   // what you actually flew beats what the portals suggest
         if (!known && st.mode != 0) {
             Notification::create("Play this level past " + fmt::format("{}%", static_cast<int>(spot.startPercent())) + " once so Drill learns the height", NotificationIcon::Info, 3.f)->show();
         }
+        log::info("Ludo drill: gravity portals say flipped={}, your runs say {}", portalFlip, seenFlip < 0 ? "nothing yet" : (seenFlip ? "flipped" : "upright"));
         log::info("Ludo drill: height {:.0f} ({})", st.y, known ? "from your own runs" : "guessed from portals");
         log::info("Ludo drill: level {} spot {} -> x={:.0f} y={:.0f} mode={} speed={} mini={} dual={} mirror={} flipped={}",
             spot.levelId, spot.label(), x, st.y, st.mode, static_cast<int>(st.speed), st.mini, st.dual, st.mirror, st.flipped);
@@ -147,6 +149,10 @@ class $modify(LudoDrillLayer, PlayLayer) {
         this->setStartPosObject(sp);
         m_isTestMode = true;   // a start pos run, so the game itself saves no progress from it
         this->resetLevel();
+        if (m_player1) {
+            log::info("Ludo drill: after spawn the player is {} (wanted {})", m_player1->m_isUpsideDown ? "upside down" : "upright", st.flipped ? "upside down" : "upright");
+            if (m_player1->m_isUpsideDown != st.flipped) m_player1->flipGravity(st.flipped, true);   // make gravity match what you flew
+        }
     }
 
     void setupHasCompleted() {
